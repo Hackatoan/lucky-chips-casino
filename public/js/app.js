@@ -337,7 +337,7 @@ async function homePage() {
     const multi = state.games.filter(g => g.shared);
     body.append(rail('👥 Play with others', 'Quick-join a public table, or invite friends with a private link', multi.map(g => h('div', { class: 'tile tile-multi cat-' + g.category },
       h('div', { class: 'tile-art' }, h('span', { class: 'ico' }, g.icon)),
-      h('div', { class: 'tile-body' }, h('h3', null, g.name), h('div', { class: 'muted small' }, g.shared.mode === 'simul' ? 'Shared outcome' : g.shared.mode === 'rounds' ? 'One shared dealer' : 'Everyone plays their own hand'),
+      h('div', { class: 'tile-body' }, h('h3', null, g.name), h('div', { class: 'muted small' }, g.shared.mode === 'simul' ? 'Shared outcome' : g.shared.mode === 'rounds' ? 'One shared dealer' : g.shared.mode === 'poker' ? 'Player vs player · practise vs bots' : 'Everyone plays their own hand'),
         h('div', { class: 'row', style: { marginTop: '8px', gap: '6px' } }, h('button', { class: 'btn gold sm', onclick: () => quickPlay(g.id) }, '⚡ Quick join'), h('button', { class: 'btn sm', onclick: () => privateTable(g.id) }, '🔗 Private'))))), joinCodeBox()));
     for (const [cat, title, sub] of ROWS) {
       const list = state.games.filter(g => g.category === cat);

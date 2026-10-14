@@ -1,7 +1,7 @@
 'use strict';
 // Registry. Order here = order in the lobby.
 const ids = [
-  'blackjack', 'roulette', 'baccarat', 'craps', 'videopoker', 'threecard', 'letitride', 'war', 'reddog',
+  'blackjack', 'roulette', 'baccarat', 'craps', 'videopoker', 'holdem', 'threecard', 'letitride', 'war', 'reddog',
   'sicbo', 'chuckaluck', 'sevenup', 'crownanchor', 'dice',
   'keno', 'hilo', 'plinko', 'mines', 'wheel',
   // slots live at the bottom of the lobby

@@ -286,6 +286,7 @@ async function mountGame(id, shell, onLeave, table) {
     if (tick) clearInterval(tick);
     const offset = s.now - Date.now();
     const upd = () => {
+      if (s.mode === 'poker') { tp.status.textContent = s.pk && s.pk.practice ? '🤖 Practice table — demo chips, bots play with you.' : s.pk && s.pk.needPlayers ? 'Waiting for another player — a hand needs at least two.' : `Blinds ${s.pk ? s.pk.sb + '/' + s.pk.bb : ''} · no limit`; tp.bar.hidden = true; return; }
       if (s.mode === 'parallel') { tp.status.textContent = s.bot ? '🤖 Bots play endlessly while someone is watching.' : 'Everyone plays at their own pace. Results appear in the live feed.'; tp.bar.hidden = true; return; }
       if (s.phase === 'results') { tp.status.textContent = `Round ${s.round - 1} complete — next round starting…`; tp.bar.hidden = true; return; }
       if (s.mode === 'rounds' && s.phase !== 'betting') {
@@ -312,7 +313,7 @@ async function mountGame(id, shell, onLeave, table) {
       const btns = [];
       if (me && me.out) btns.push(h('button', { class: 'btn green', onclick: () => ctx.tableCall('sitin').then(() => sfx.play('join')).catch(e => toast(e.message, 'bad')) }, '🪑 Sit back in'));
       else {
-        if (s.mode !== 'parallel') {
+        if (s.mode !== 'parallel' && s.mode !== 'poker') {
           if (!s.repeat) btns.push(h('button', { class: 'btn sm', disabled: !(me && me.staked) || s.phase !== 'betting', onclick: takeBack }, '↩ Take bets back'));
           if (s.mode !== 'rounds') btns.push(h('button', { class: 'btn sm', disabled: s.phase !== 'betting', onclick: () => ctx.tableCall('ready').then(() => sfx.play('click')).catch(e => toast(e.message, 'bad')) }, s.repeat ? '🎲 Go (roll now)' : '✔ I\'m ready'));
         }

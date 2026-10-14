@@ -162,17 +162,19 @@ function renderTable(ctx, snap, spectator) {
   // seats
   const names = rd.order && rd.order.length ? rd.order : snap.players.filter(p => !p.banker).map(p => p.name);
   if (spectator && !s.focus) s.focus = names[0];
+  if (spectator && snap.bot && !s.manualFocus && rd.focus && names.includes(rd.focus)) s.focus = rd.focus;      // follow the bot that is acting
   clear(s.player); s.player.className = 'seats';
   for (const n of names) {
     const pl = snap.players.find(p => p.name === n) || {};
     const mine = n === me && !spectator;
     const pv = mine && v && v.hands && v.hands.length && rd.order.includes(me) ? v : (snap.pviews || {})[n];
-    s.player.append(seatNode(n, pv, { me: mine, focus: spectator && s.focus === n, last: pl.last, staked: pl.staked, onclick: spectator ? () => { s.focus = n; renderTable(ctx, snap, true); } : null }));
+    s.player.append(seatNode(n, pv, { me: mine, focus: spectator && s.focus === n, last: pl.last, staked: pl.staked, onclick: spectator ? () => { s.focus = n; s.manualFocus = true; renderTable(ctx, snap, true); } : null }));
   }
   clear(s.banner); clear(s.controls);
   const myPv = spectator ? (snap.pviews || {})[s.focus] : v;
   const coach = myPv && ctx.coachOn() ? myPv.coach : null;
   if (spectator) {                                       // watchers (bot tables) can follow the coach on any seat
+    if (snap.bot) s.banner.append(h('div', { class: 'center small' }, btn(s.manualFocus ? '🎯 Follow the action' : '🎯 Following the action', 'xs' + (s.manualFocus ? '' : ' on'), () => { s.manualFocus = !s.manualFocus; renderTable(ctx, snap, true); }, { title: 'The coach panel jumps to whichever bot is about to move' })));
     if (snap.bot && myPv) ctx.setCoach(coachNode(coach, myPv, ctx, false)); else ctx.setCoach(h('p', { class: 'muted' }, 'Watching the table.'));
     return;
   }

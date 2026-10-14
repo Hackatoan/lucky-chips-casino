@@ -568,3 +568,45 @@ table.chart { border-collapse: separate; border-spacing: 2px; font-size: .85rem;
 .seats .card { width: 44px; height: 64px; margin-left: -26px; }
 .seats .card .cr { font-size: .85rem; } .seats .card .cs { font-size: 1.15rem; }
 .seats .seat[onclick], .seats .seat { cursor: default; }
+
+/* ---------------- Texas Hold'em ---------------- */
+.pk { width: 100%; }
+.pk-launch { max-width: 560px; margin: 0 auto; padding: 8px 4px; }
+.pk-form { display: grid; gap: 8px; margin: 12px 0; }
+.pk-form label { font-size: .9rem; color: var(--muted, #9db9ad); }
+.pk-ring { position: relative; width: 100%; aspect-ratio: 16 / 10; min-height: 360px; border-radius: 50% / 46%; background: radial-gradient(ellipse at center, rgba(255,255,255,.06), rgba(0,0,0,.18) 70%); border: 1px solid rgba(255,255,255,.08); }
+.pk-center { position: absolute; left: 50%; top: 47%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; width: 54%; }
+.pk-board { display: flex; gap: 6px; justify-content: center; min-height: 66px; }
+.pk-board .card, .pk-hole .card { margin-left: 0; width: 44px; height: 64px; }
+.pk-board .card .cr, .pk-hole .card .cr { font-size: .85rem; } .pk-board .card .cs, .pk-hole .card .cs { font-size: 1.15rem; }
+.pk-slot { width: 44px; height: 64px; border: 1px dashed rgba(255,255,255,.18); border-radius: 6px; }
+.pk-pot { display: flex; gap: 8px; align-items: center; }
+.pk-status { font-size: .88rem; font-weight: 600; text-align: center; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.3); }
+.pk-status.mine { background: rgba(46,160,90,.25); color: #b9f0cc; }
+.pk-seat { position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 96px; text-align: center; }
+.pk-hole { display: flex; gap: 3px; min-height: 64px; } .pk-hole.empty { min-height: 0; }
+.pk-hole .card.mine { width: 52px; height: 76px; }
+.pk-plate { background: rgba(8,28,22,.9); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 3px 8px; margin-top: -10px; position: relative; }
+.pk-name { font-weight: 700; font-size: .8rem; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.pk-stack { font-size: .75rem; color: #f3d68a; }
+.pk-seat.me .pk-plate { border-color: rgba(243,194,83,.85); }
+.pk-seat.acting .pk-plate { border-color: rgba(90,220,140,.95); box-shadow: 0 0 0 2px rgba(90,220,140,.35), 0 0 16px rgba(90,220,140,.45); }
+.pk-seat.folded { opacity: .45; } .pk-seat.away { opacity: .6; }
+.pk-seat.won .pk-plate { border-color: rgba(243,194,83,1); box-shadow: 0 0 18px rgba(243,194,83,.6); }
+.pk-folded { font-size: .75rem; color: #9db9ad; min-height: 40px; display: flex; align-items: center; }
+.pk-dealer { position: absolute; top: -4px; right: -2px; width: 22px; height: 22px; border-radius: 50%; background: #f3f3f3; color: #111; font-weight: 800; font-size: .75rem; display: grid; place-items: center; z-index: 2; }
+.pk-bet { background: rgba(214,58,58,.9); color: #fff; font-weight: 700; font-size: .75rem; padding: 1px 8px; border-radius: 999px; margin-top: 2px; }
+.pk-win { color: #7ef0a6; font-weight: 800; font-size: .9rem; }
+.pk-hand, .pk-last { font-size: .72rem; color: #cfe4d8; max-width: 150px; }
+.pk-controls { margin-top: 10px; display: grid; gap: 8px; justify-items: center; }
+.pk-raise { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+.pk-log { margin-top: 8px; font-size: .78rem; color: #9db9ad; text-align: center; min-height: 20px; }
+.pk-eq { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.pk-eq-bar { flex: 1; height: 10px; background: rgba(255,255,255,.1); border-radius: 6px; overflow: hidden; } .pk-eq-bar i { display: block; height: 100%; background: linear-gradient(90deg, #d79a1e, #2f9e5a); }
+.btn.rec { box-shadow: 0 0 0 2px rgba(90,220,140,.55); }
+@media (max-width: 760px) {
+  .pk-ring { aspect-ratio: 3 / 4; min-height: 480px; border-radius: 40px; }
+  .pk-center { width: 90%; top: 46%; }
+  .pk-board .card, .pk-hole .card, .pk-slot { width: 34px; height: 50px; } .pk-hole .card.mine { width: 40px; height: 58px; }
+  .pk-seat { min-width: 70px; } .pk-name { font-size: .7rem; max-width: 80px; } .pk-stack { font-size: .68rem; }
+}

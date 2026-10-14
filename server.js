@@ -350,9 +350,13 @@ async function api(req, res, url) {
   if (m === 'POST' && p === '/api/table') {
     const b = await readBody(req);
     if (!throttle('mk:' + user.id, 10, 600e3)) return json(res, 429, { error: 'You are creating tables too quickly.' });
-    const t = tables.create({ game: String(b.game), user: stmt.userById.get(user.id), isPublic: !!b.public, secs: b.secs, rules: b.rules, fee: b.fee, bank: b.bank });
-    tables.join(t, Object.assign({}, user, { ip: clientIp(req) }));
-    return json(res, 200, { table: tables.snapshot(t) });
+    const nBots = Math.max(0, Math.min(7, Math.floor(Number(b.bots) || 0)));
+    const t = tables.create({ game: String(b.game), user: stmt.userById.get(user.id), isPublic: !!b.public && !nBots, secs: b.secs, rules: b.rules, fee: b.fee, bank: b.bank, practice: nBots > 0, blinds: b.blinds });
+    try {
+      tables.join(t, Object.assign({}, user, { ip: clientIp(req) }), { buyin: b.buyin });
+      if (nBots) tables.addPracticeBots(t, nBots);
+    } catch (e) { tables.closeTable(t, null, 'cancelled'); throw e; }
+    return json(res, 200, { table: tables.snapshot(t, 'player', user.id) });
   }
   const tm = p.match(/^\/api\/table\/([A-Za-z0-9]{6})(?:\/([a-z]+))?$/);
   if (tm) {
@@ -361,7 +365,7 @@ async function api(req, res, url) {
     const act = tm[2];
     if (m === 'GET' && !act) {
       const role = t.players.has(user.id) ? 'player' : t.viewers.has(user.id) ? 'viewer' : 'none';
-      const snap = tables.snapshot(t, role === 'viewer' ? 'viewer' : 'player');
+      const snap = tables.snapshot(t, role === 'viewer' ? 'viewer' : 'player', user.id);
       snap.seated = role === 'player'; snap.role = role; snap.isHost = t.hostId === user.id; snap.queued = t.queue.findIndex(x => x.uid === user.id) + 1; snap.chat = role === 'none' ? [] : snap.chat;
       return json(res, 200, { table: snap });
     }
@@ -375,7 +379,9 @@ async function api(req, res, url) {
       if (act === 'queue') { const pos = tables.tableQueueJoin(t, fresh); return json(res, 200, { position: pos }); }
       if (act === 'unqueue') { tables.tableQueueLeave(t, fresh); return json(res, 200, { ok: true }); }
       if (act === 'kick') { tables.kick(t, fresh, b.name); return json(res, 200, { ok: true }); }
-      if (act === 'join') { tables.join(t, fresh); return json(res, 200, { table: tables.snapshot(t) }); }
+      if (act === 'join') { tables.join(t, fresh, { buyin: b.buyin }); return json(res, 200, { table: tables.snapshot(t, 'player', user.id) }); }
+      if (act === 'pk') { tables.pokerAct(t, fresh, String(b.action), b.to); return json(res, 200, { ok: true }); }
+      if (act === 'rebuy') { const r = tables.pokerRebuy(t, fresh, b.amount); return json(res, 200, { ok: true, ...r }); }
       if (act === 'leave') { tables.leave(t, fresh); tables.unwatch(t, fresh); return json(res, 200, { ok: true }); }
       if (act === 'sitout') { tables.sitOut(t, fresh); return json(res, 200, { ok: true, table: tables.snapshot(t) }); }
       if (act === 'sitin') { tables.sitIn(t, fresh); return json(res, 200, { ok: true, table: tables.snapshot(t) }); }
