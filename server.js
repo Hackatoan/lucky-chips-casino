@@ -415,11 +415,24 @@ async function api(req, res, url) {
 // ---------- static (in-memory, pre-compressed, ETag'd) ----------
 const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.svg', '.txt']);
 const staticCache = new Map();          // abs path -> { mtime, size, buf, gz, br, etag, type }
+// Build id = hash of every public file. Asset URLs get `?v=<build>` appended on the fly, so a deploy changes every
+// module URL and no browser/CDN can keep running stale JS (dynamic import() ignores a hard refresh in some browsers).
+const BUILD = (() => {
+  const hash = crypto.createHash('sha1');
+  const walk = d => { for (const n of fs.readdirSync(d).sort()) { const f = path.join(d, n); fs.statSync(f).isDirectory() ? walk(f) : hash.update(n).update(fs.readFileSync(f)); } };
+  try { walk(PUB); } catch {}
+  return hash.digest('hex').slice(0, 10);
+})();
+function versioned(ext, buf) {
+  if (ext === '.js') return Buffer.from(buf.toString('utf8').replace(/(\.js)(['"`])/g, `$1?v=${BUILD}$2`));
+  if (ext === '.html') return Buffer.from(buf.toString('utf8').replace(/(\.js|\.css)(["'])/g, `$1?v=${BUILD}$2`));
+  return buf;
+}
 function loadStatic(file, st) {
   const hit = staticCache.get(file);
   if (hit && hit.mtime === st.mtimeMs && hit.size === st.size) return hit;
   const ext = path.extname(file);
-  const buf = fs.readFileSync(file);
+  const buf = versioned(ext, fs.readFileSync(file));
   const e = { mtime: st.mtimeMs, size: st.size, buf, type: MIME[ext] || 'application/octet-stream', etag: '"' + crypto.createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"' };
   if (COMPRESSIBLE.has(ext) && buf.length > 600) { e.gz = zlib.gzipSync(buf, { level: 9 }); e.br = zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }); }
   staticCache.set(file, e);
