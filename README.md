@@ -1,6 +1,6 @@
 # Lucky Chips Casino
 
-A play-money casino with 26 games, a built-in strategy coach, card-counting trainer, shared tables, and bots. No cash value, ever.
+A play-money casino with 27 games, a built-in strategy coach, card-counting trainer, shared tables, Texas Hold'em and bots. No cash value, ever.
 
 🔗 **Live:** [casino.hackatoa.com](https://casino.hackatoa.com)   ·   ☕ **Support:** [Buy Me a Coffee](https://buymeacoffee.com/hackatoa)
 
@@ -10,7 +10,9 @@ Everyone gets 1,000 free chips a day (server clock only, so changing your device
 
 ## Features
 
-- 26 games: blackjack (Hi-Lo HUD, index plays, side bets), roulette, baccarat, craps, video poker, three card poker, Let It Ride, Sic Bo, slots (7 themes) and more
+- 27 games: blackjack (Hi-Lo HUD, index plays, side bets), roulette, baccarat, craps, video poker, Texas Hold'em, three card poker, Let It Ride, Sic Bo, slots (7 themes) and more
+- Shared-dealer tables (blackjack, Casino War, Three Card Poker, Let It Ride): one dealer hand, everyone plays at once, bots take turns one at a time
+- Texas Hold'em: no-limit, private cards (only ever sent to you), side pots, a coach with equity and pot odds, and practice tables with 1–7 bots
 - Coach tips, post-round reviews, per-decision skill ratings, Learn section with hand examples, card-counting trainer
 - Public lobbies with queue, spectators, chat (filterable), sit-out; private tables with kick/ban, game switching, banker mode
 - Provably fair shared tables (seed commitment + reveal, verified in-browser)
@@ -39,6 +41,8 @@ docker compose up -d --build
 ```
 
 Or run `deploy/install.sh` on a systemd host. Data lives in `./data` (SQLite).
+
+Legal pages ship with the app: `/terms`, `/privacy`, `/cookies`, `/responsible`, and a dependency-free cookie notice (`public/cookie-notice.js`).
 
 ## Support
 
