@@ -454,6 +454,7 @@ function serveStatic(req, res, url) {
   const file = path.normalize(path.join(PUB, rel));
   if (!file.startsWith(PUB + path.sep) && file !== PUB) { res.writeHead(403); return res.end('Forbidden'); }
   fs.stat(file, (err, st) => {
+    if (!err && st.isDirectory()) return serveStatic(req, res, new URL(url.pathname.replace(/\/?$/, '/') + 'index.html', 'http://x'));    // /terms -> /terms/index.html
     if (err || !st.isFile()) {
       if (!path.extname(rel)) return serveStatic(req, res, new URL('/', 'http://x'));     // SPA fallback
       res.writeHead(404); return res.end('Not found');

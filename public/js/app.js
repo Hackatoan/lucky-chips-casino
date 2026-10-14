@@ -91,7 +91,8 @@ export function shell(content, active) {
         h('a', { href: issueUrl('bug'), target: '_blank', rel: 'noopener noreferrer' }, '🐞 Report a bug'),
         h('a', { href: '#/house' }, '🏦 The House'),
         h('a', { href: '#/learn' }, '📖 Learn'),
-        state.repo ? h('a', { href: 'https://github.com/' + state.repo, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub') : null)));
+        state.repo ? h('a', { href: 'https://github.com/' + state.repo, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub') : null),
+      h('div', { class: 'foot-links small' }, h('a', { href: '/terms' }, 'Terms'), h('a', { href: '/privacy' }, 'Privacy'), h('a', { href: '/cookies' }, 'Cookies'), h('a', { href: '#', 'data-cookie-settings': '' }, 'Cookie settings'), h('a', { href: '/responsible' }, 'Play-money & responsible play'))));
   root.replaceChildren(top, h('main', { class: 'wrap' }, content), foot);
   if (u.needsVerify) verifyBanner().then(b => { if (b && root.isConnected) root.querySelector('main').prepend(b); }).catch(() => {});
   return root;
@@ -265,7 +266,7 @@ async function authPage(returnHash) {
     h('p', { class: 'center muted' }, 'A play-money casino. 1,000 free chips every day, 25+ games, and a coach that explains every move.'),
     returnHash.startsWith('/t/') ? h('p', { class: 'badge gold', style: { display: 'block', textAlign: 'center', margin: '0 0 12px' } }, '🔗 Sign in to join your friend\'s table') : null,
     googleBtn, useFb ? h('div', { class: 'or' }, h('span', null, 'or with email')) : null, seg, form,
-    h('p', { class: 'disc' }, 'Chips have no cash value and can never be cashed out. For entertainment and learning only. 18+ recommended.'))));
+    h('p', { class: 'disc' }, 'Chips have no cash value and can never be cashed out. For entertainment and learning only. You must be 18+. By continuing you agree to the ', h('a', { href: '/terms', target: '_blank' }, 'Terms'), ' and ', h('a', { href: '/privacy', target: '_blank' }, 'Privacy Policy'), '.'))));
 }
 
 // banner for email accounts that haven't verified yet (chips unlock on verification)
