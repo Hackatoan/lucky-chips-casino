@@ -458,7 +458,7 @@ const SEC_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://*.googleusercontent.com; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.firebaseapp.com; frame-src https://accounts.google.com https://*.firebaseapp.com https://apis.google.com; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'",
 };
 
-const server = http.createServer(async (req, res) => {
+const handler = async (req, res) => {
   for (const [k, v] of Object.entries(SEC_HEADERS)) res.setHeader(k, v);
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); return res.end(); }
@@ -471,7 +471,12 @@ const server = http.createServer(async (req, res) => {
     console.error(e);
     return json(res, 500, { error: 'Server error.' });
   }
-});
+};
+
+// Optional TLS (TLS_CERT/TLS_KEY) for hosts where the reverse proxy reaches us over the internet.
+const server = process.env.TLS_CERT && process.env.TLS_KEY
+  ? require('node:https').createServer({ cert: fs.readFileSync(process.env.TLS_CERT), key: fs.readFileSync(process.env.TLS_KEY) }, handler)
+  : http.createServer(handler);
 
 if (require.main === module) {
   const recovered = tables.recoverEscrow();
