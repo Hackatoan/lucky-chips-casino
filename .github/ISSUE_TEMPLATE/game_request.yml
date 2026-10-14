@@ -1,0 +1,11 @@
+name: Game request
+description: Ask for a new game or side bet
+labels: [enhancement]
+body:
+  - type: input
+    id: game
+    attributes: {label: Game name}
+    validations: {required: true}
+  - type: textarea
+    id: rules
+    attributes: {label: Rules / link to rules}

@@ -1,0 +1,65 @@
+{
+  "classic": {
+    "blanks": 4,
+    "payScale": 0.9848,
+    "rtp": 0.9459,
+    "se": 0.0034,
+    "hit": 0.303,
+    "fs": 0,
+    "vol": 3.08
+  },
+  "fruit": {
+    "blanks": 0,
+    "payScale": 1.0511,
+    "rtp": 0.949,
+    "se": 0.003,
+    "hit": 0.293,
+    "fs": 0.0006,
+    "vol": 2.72
+  },
+  "pharaoh": {
+    "blanks": 3,
+    "payScale": 1.0208,
+    "rtp": 0.9548,
+    "se": 0.005,
+    "hit": 0.426,
+    "fs": 0.0039,
+    "vol": 4.44
+  },
+  "dragon": {
+    "blanks": 0,
+    "payScale": 0.9391,
+    "rtp": 0.9518,
+    "se": 0.003,
+    "hit": 0.571,
+    "fs": 0.0097,
+    "vol": 2.73
+  },
+  "gems": {
+    "blanks": 6,
+    "payScale": 1.0742,
+    "rtp": 0.957,
+    "se": 0.0022,
+    "hit": 0.596,
+    "fs": 0.0044,
+    "vol": 1.96
+  },
+  "bubble": {
+    "blanks": 11,
+    "payScale": 1.0866,
+    "rtp": 0.9698,
+    "se": 0.0016,
+    "hit": 0.76,
+    "fs": 0.002,
+    "vol": 1.43
+  },
+  "jackpot": {
+    "blanks": 6,
+    "payScale": 1.023,
+    "rtp": 0.8775,
+    "se": 0.0042,
+    "hit": 0.282,
+    "fs": 0,
+    "vol": 3.76
+  }
+}

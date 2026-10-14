@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#1b7a58"/><stop offset="1" stop-color="#07271e"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#d79a1e"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#g)"/>
+  <circle cx="256" cy="256" r="170" fill="#c0392b" stroke="url(#gold)" stroke-width="14"/>
+  <g fill="#fff">
+    <rect x="240" y="78" width="32" height="64" rx="8"/><rect x="240" y="370" width="32" height="64" rx="8"/>
+    <rect x="78" y="240" width="64" height="32" rx="8"/><rect x="370" y="240" width="64" height="32" rx="8"/>
+    <rect x="130" y="130" width="32" height="64" rx="8" transform="rotate(-45 146 162)"/><rect x="350" y="318" width="32" height="64" rx="8" transform="rotate(-45 366 350)"/>
+    <rect x="350" y="130" width="32" height="64" rx="8" transform="rotate(45 366 162)"/><rect x="130" y="318" width="32" height="64" rx="8" transform="rotate(45 146 350)"/>
+  </g>
+  <circle cx="256" cy="256" r="104" fill="#0b3d2e" stroke="url(#gold)" stroke-width="8"/>
+  <text x="256" y="300" font-family="Georgia,serif" font-size="140" font-weight="700" text-anchor="middle" fill="url(#gold)">♠</text>
+</svg>

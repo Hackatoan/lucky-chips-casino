@@ -1,0 +1,8 @@
+name: Bug report
+description: Something looks or behaves wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: {label: What happened?, description: Include game, device and steps}
+    validations: {required: true}

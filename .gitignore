@@ -1,0 +1,5 @@
+data/
+node_modules/
+config/firebase.web.json
+.claude/
+*.log

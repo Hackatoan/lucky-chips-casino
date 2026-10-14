@@ -1,0 +1,31 @@
+{
+  "name": "lucky-chips-casino",
+  "version": "1.0.0",
+  "description": "Play-money casino with accounts, daily chips, 17+ games and a built-in strategy coach",
+  "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/run.js",
+    "test:sims": "node test/run.js --sims",
+    "tune:slots": "node test/slots.tune.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hackatoan/lucky-chips-casino.git"
+  },
+  "homepage": "https://casino.hackatoa.com",
+  "author": "Hackatoan",
+  "keywords": [
+    "casino",
+    "blackjack",
+    "roulette",
+    "craps",
+    "card-counting",
+    "pwa",
+    "sqlite",
+    "firebase-auth"
+  ]
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Lucky Chips Casino
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/luckychips
+ExecStart=/opt/node/bin/node server.js
+Environment=PORT=3000 HOST=127.0.0.1
+Restart=always
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target
