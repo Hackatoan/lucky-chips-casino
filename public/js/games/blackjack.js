@@ -126,7 +126,7 @@ function coachNode(coach, v, ctx, showCount) {
   const out = h('div', { class: 'coach-content' });
   if (!coach) {
     out.append(h('p', null, 'Place a bet and deal. During your hand the coach explains the best play and why — hover any action button for a quick tip.'));
-    if (showCount) out.append(h('div', { class: 'coach-best' }, h('b', null, '🃏 Bet sizing by count'), h('p', { class: 'small', style: { margin: '4px 0 0' } }, v.advice.text)));
+    if (showCount && v.advice) out.append(h('div', { class: 'coach-best' }, h('b', null, '🃏 Bet sizing by count'), h('p', { class: 'small', style: { margin: '4px 0 0' } }, v.advice.text)));
     out.append(h('p', { class: 'muted small' }, 'Shortcuts: H hit · S stand · D double · P split · R surrender · Enter deal'));
     return out;
   }

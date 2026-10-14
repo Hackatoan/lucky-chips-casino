@@ -60,6 +60,7 @@ async function mountGame(id, shell, onLeave, table) {
   const reviewBox = h('div', { class: 'review' }, h('p', { class: 'muted' }, 'After every round you\'ll get a breakdown here: what happened, whether your decisions were right, the odds, and tips.'));
   const rulesBox = h('div', { class: 'rules' });
   const tableBox = h('div', { class: 'tblbox' });
+  const othersBox = h('div', { class: 'others' });
   const settings = () => state.user.settings || {};
   const myName = () => state.user.display;
 
@@ -172,7 +173,7 @@ async function mountGame(id, shell, onLeave, table) {
   const tabItems = table && (table.role === 'viewer' || (table.snap.bank && table.snap.hostName === myName())) ? items.filter(i => i[0] !== 'coach' && i[0] !== 'review') : items;
   const tabset = tabs(tabItems, { active: table ? 'table' : 'coach', onChange: id2 => { if (id2 === 'review' && ctx.tab && ctx.tab.btns.review) { const d = ctx.tab.btns.review.querySelector('.dot'); if (d) d.remove(); } } });
   ctx.tab = tabset;
-  shell(h('div', null, head, h('div', { class: 'game' }, stage, h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
+  shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, stage, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
   if (first.last) ctx.showReview(first.last, true);
 
   // ===================== shared table =====================
@@ -192,7 +193,7 @@ async function mountGame(id, shell, onLeave, table) {
     else stage.append(h('div', { class: 'spectator-banner' }, botTable ? '🤖 Bots are playing — you\'re watching' : isBankerHost() ? '🏦 You\'re the banker — the table bets against you' : '👁 You\'re watching table ' + table.code));
     buildTablePanel();
     connect();
-    onLeave(() => { if (es) es.close(); clearInterval(tick); if (mod.destroy) mod.destroy(ctx); });
+    onLeave(() => { if (es) es.close(); clearInterval(tick); for (const o of others.values()) if (mod.destroy) { try { mod.destroy(o.sc); } catch {} } if (mod.destroy) mod.destroy(ctx); });
   }
 
   async function leaveTable() { try { await ctx.tableCall('leave'); } catch {} sfx.play('click'); go(botTable ? '#/arena' : '#/g/' + id); }
@@ -317,6 +318,7 @@ async function mountGame(id, shell, onLeave, table) {
     // stage for spectators
     if (spectating()) renderSpectator(s);
     if (mod.onTable && !spectating()) mod.onTable(ctx, s, prevSnap);
+    renderOthers(s);
   }
   async function enqueue() { try { const r = await ctx.tableCall('queue'); tp.queued = true; toast(`You're #${r.position} in the queue — you'll be seated automatically.`, 'good'); onState(snap); } catch (e) { toast(e.message, 'bad'); } }
   async function unqueue() { try { await ctx.tableCall('unqueue'); tp.queued = false; onState(snap); } catch (e) { toast(e.message, 'bad'); } }
@@ -361,6 +363,28 @@ async function mountGame(id, shell, onLeave, table) {
   function histChip(x) {
     if (x.c) return h('span', { class: x.c }, x.n);
     return h('span', { style: { background: 'rgba(255,255,255,.12)' } }, x.text || JSON.stringify(x));
+  }
+
+
+  // ----- seated players at a parallel table see everyone else's hand live, beneath their own -----
+  const others = new Map();                          // name -> { box, inner, sc }
+  function renderOthers(s) {
+    const want = (table && s.mode === 'parallel' && !spectating() && s.pviews)
+      ? s.players.filter(p => !p.banker && p.name !== myName() && s.pviews[p.name]).map(p => p.name) : [];
+    for (const [n, o] of others) if (!want.includes(n)) { try { if (mod.destroy) mod.destroy(o.sc); } catch {} o.box.remove(); others.delete(n); }
+    if (!want.length) { othersBox.replaceChildren(); return; }
+    for (const n of want) {
+      let o = others.get(n);
+      if (!o) {
+        const inner = h('div', { class: 'other-inner' });
+        const box = h('div', { class: 'other-seat' }, h('div', { class: 'other-name' }, n), inner);
+        const sc = Object.create(ctx); sc.__who = n; sc.stage = inner; sc.readonly = true; sc.table = null; sc.setCoach = () => {}; sc.call = sc.primary = async () => null; sc.coachOn = () => false; sc.toast = () => {};
+        try { mod.init(sc); } catch (e) { console.error(e); }
+        o = { box, inner, sc }; others.set(n, o);
+      }
+      try { mod.render(s.pviews[n], o.sc); } catch (e) { console.error(e); }
+    }
+    othersBox.replaceChildren(h('div', { class: 'others-title' }, '👥 Other players — live'), h('div', { class: 'others-grid' }, want.map(n => others.get(n).box)));
   }
 
   // ----- stage for viewers / banker host -----

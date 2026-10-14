@@ -39,7 +39,7 @@ export default {
       cfg.jackpot ? h('div', { class: 'coach-opt' }, h('b', null, 'Progressive jackpot'), 'The pool grows with every spin from every player. It costs ~3% of each bet, which is why this machine\'s base return is lower.') : null));
   },
 };
-const emoji = (s, id) => (id === '_' ? '' : s.sym[id] ? s.sym[id].emoji : id);
+const emoji = (s, id) => (id === '_' ? '▬' : s.sym[id] ? s.sym[id].emoji : id);
 function idleGrid(cfg, s) { const ids = cfg.symbols.filter(x => x.id !== cfg.scatter && x.id !== cfg.wild).map(x => x.id); return Array.from({ length: cfg.reels }, () => Array.from({ length: cfg.rows }, () => ids[Math.floor(Math.random() * ids.length)])); }
 function lastGrid(last) { const r = last.rounds[last.rounds.length - 1]; return (r.cascade ? r.cascade[r.cascade.length - 1].grid : r.grid); }
 function cell(s, id, extra = '') { return h('div', { class: `sl-cell sym-${id} ${extra}` + (s.cfg.wild === id ? ' wild' : '') + (s.cfg.scatter === id ? ' scat' : '') }, h('span', null, emoji(s, id))); }
