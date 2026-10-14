@@ -2,10 +2,10 @@
 import { sfx } from './sfx.js';
 
 // Defensive: the native DOM methods turn a null/undefined/false child into the literal text "null". Conditional children are
-// everywhere in this UI (`cond ? node : null`), so make every append-style method skip them.
+// everywhere in this UI (`cond ? node : null`), so make every append-style method skip them (and flatten nested arrays).
 for (const m of ['append', 'prepend', 'replaceChildren', 'before', 'after']) {
   const orig = Element.prototype[m];
-  Element.prototype[m] = function (...kids) { return orig.apply(this, kids.filter(k => k !== null && k !== undefined && k !== false)); };
+  Element.prototype[m] = function (...kids) { return orig.apply(this, kids.flat(Infinity).filter(k => k !== null && k !== undefined && k !== false)); };
 }
 import { state, maxAffordable } from './api.js';
 

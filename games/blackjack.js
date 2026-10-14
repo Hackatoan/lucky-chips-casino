@@ -457,7 +457,7 @@ function coachFor(st, bal) {
 // ---------- view ----------
 function view(st, { balance, coachOn = true }) {
   if (!st) {
-    return { phase: 'idle', count: { left: DECKS * 52, decks: DECKS, rc: 0, tc: 0 }, hands: [], dealer: [], sides: {}, sideRes: [], advice: betAdvice(0), balance };
+    return { phase: 'idle', count: { left: DECKS * 52, decks: DECKS, rc: 0, tc: 0 }, hands: [], dealer: { cards: [], total: 0, soft: false }, sides: {}, sideRes: [], advice: betAdvice(0), balance };
   }
   const tc = trueCount(st);
   const dealerCards = st.dealer.map((c, i) => (i === 1 && st.holeHidden ? null : C.str(c)));

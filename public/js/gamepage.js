@@ -177,6 +177,9 @@ async function mountGame(id, shell, onLeave, table) {
 
   // ===================== shared table =====================
   let es = null, snap = table ? table.snap : null, tick = null, prevSnap = null;
+  let tp = {};
+  const seenPlayers = new Set();
+  const chatOn = () => settings().chat !== false;
   const myPlayer = () => snap && snap.players.find(p => p.name === myName());
   const mutes = new Set(store.get('muted', []));
   let spec = null;                                 // viewer-side renderer state (parallel rooms)
@@ -207,9 +210,6 @@ async function mountGame(id, shell, onLeave, table) {
     es.onerror = () => { /* EventSource retries automatically */ };
   }
 
-  let tp = {};
-  const seenPlayers = new Set();
-  const chatOn = () => settings().chat !== false;
   function buildTablePanel() {
     const isViewer = table.role === 'viewer';
     const link = location.origin + '/#/t/' + table.code;
