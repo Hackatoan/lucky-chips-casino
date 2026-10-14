@@ -119,7 +119,7 @@ export async function lobbyPage() {
           const list = r.games.filter(g => g.category === cat);
           if (!list.length) return null;
           return h('div', null, h('h2', { style: { margin: '18px 0 8px' } }, label), ...list.map(g => h('div', { class: 'panel', style: { marginBottom: '10px' } },
-            h('div', { class: 'row' }, h('h3', { style: { margin: 0 } }, g.icon + ' ' + g.name), badge(g.mode === 'simul' ? 'shared outcome' : 'own hands', ''), h('span', { class: 'muted small' }, `up to ${g.max} players per table`), h('span', { class: 'grow' }),
+            h('div', { class: 'row' }, h('h3', { style: { margin: 0, cursor: 'pointer' }, title: 'Quick play', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, g.icon + ' ' + g.name), badge(g.mode === 'simul' ? 'shared outcome' : 'own hands', ''), h('span', { class: 'muted small' }, `up to ${g.max} players per table`), h('span', { class: 'grow' }),
               g.full ? h('button', { class: 'btn gold', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, `⏳ Join queue (${g.queue} waiting)`) : h('button', { class: 'btn gold', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, '⚡ Quick play'),
               h('button', { class: 'btn', onclick: () => privateTableModal(g.id) }, '🔗 Private table')),
             g.full ? h('p', { class: 'small gold', style: { margin: '6px 0 0' } }, `All ${g.maxTables} public tables are full — new players queue and are seated in order.`) : null,
@@ -130,7 +130,7 @@ export async function lobbyPage() {
               h('span', { class: 'grow' }),
               h('a', { class: 'btn sm', href: `#/t/${t.code}/watch` }, '👁 Watch'),
               h('a', { class: 'btn sm green', href: `#/t/${t.code}` }, t.players >= t.capacity ? 'Try to join' : 'Join')))
-              : h('p', { class: 'muted small', style: { margin: '6px 0 0' } }, 'No tables open yet — Quick play will open one for you.'))));
+              : h('div', { class: 'lobby-row' }, h('span', { class: 'muted small' }, 'No tables open yet.'), h('span', { class: 'grow' }), h('button', { class: 'btn sm green', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, '➕ Open a table & sit down')))));
         }));
     } catch (e) { body.replaceChildren(h('p', { class: 'lose' }, e.message)); }
     if (!stop) { const t = setTimeout(load, 4000); onLeave(() => clearTimeout(t)); }
