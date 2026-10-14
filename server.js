@@ -444,7 +444,9 @@ const BUILD = (() => {
   return hash.digest('hex').slice(0, 10);
 })();
 function versioned(ext, buf) {
-  if (ext === '.js') return Buffer.from(buf.toString('utf8').replace(/(\.js)(['"`])/g, `$1?v=${BUILD}$2`));
+  // Leave absolute URLs (e.g. the Firebase CDN modules) alone: firebase-auth.js imports firebase-app.js by its plain URL,
+  // so a `?v=` on ours would load a second app instance and break auth ("Component auth has not been registered yet").
+  if (ext === '.js') return Buffer.from(buf.toString('utf8').replace(/(['"`])([^'"`\n]*?\.js)\1/g, (m, q, p) => p.includes('://') ? m : `${q}${p}?v=${BUILD}${q}`));
   if (ext === '.html') return Buffer.from(buf.toString('utf8').replace(/(\.js|\.css)(["'])/g, `$1?v=${BUILD}$2`));
   return buf;
 }

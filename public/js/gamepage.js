@@ -213,7 +213,7 @@ async function mountGame(id, shell, onLeave, table) {
   let es = null, snap = table ? table.snap : null, tick = null, prevSnap = null;
   let tp = {};
   const seenPlayers = new Set();
-  const chatOn = () => settings().chat !== false;
+  const chatOn = () => table && table.guest ? store.get('guestChat', true) !== false : settings().chat !== false;   // guests have no account, so their preference lives in this browser
   const myPlayer = () => snap && snap.players.find(p => p.name === myName());
   const mutes = new Set(store.get('muted', []));
   let spec = null;                                 // viewer-side renderer state (parallel rooms)
@@ -283,7 +283,7 @@ async function mountGame(id, shell, onLeave, table) {
     tp.drawChat();
     for (const m of snap.chat) addChat(m, true);
   }
-  async function toggleChat(on) { await saveSetting({ chat: on }); tp.drawChat(); for (const m of snap.chat) addChat(m, true); }
+  async function toggleChat(on) { if (table.guest) store.set('guestChat', on); else await saveSetting({ chat: on }); tp.drawChat(); for (const m of snap.chat) addChat(m, true); }
   async function takeSeat() {
     try { await api(`/table/${table.code}/join`, {}); go('#/t/' + table.code); }
     catch (e) { toast(e.message, 'bad', 5000); }
