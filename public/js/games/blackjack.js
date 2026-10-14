@@ -22,7 +22,8 @@ export default {
       if (ctx.readonly || e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey) return;
       const v = ctx.view; if (!v) return;
       const k = e.key.toLowerCase();
-      if (v.phase === 'player') { const m = { h: 'hit', s: 'stand', d: 'double', p: 'split', r: 'surrender' }[k]; if (m && v.allowed[m]) { e.preventDefault(); act(ctx, m); } }
+      if (v.phase === 'player' && v.allowed && v.allowed.draw) { if (k === 'enter' || k === ' ') { e.preventDefault(); act(ctx, 'draw'); } }
+      else if (v.phase === 'player') { const m = { h: 'hit', s: 'stand', d: 'double', p: 'split', r: 'surrender' }[k]; if (m && v.allowed[m]) { e.preventDefault(); act(ctx, m); } }
       else if (v.phase === 'insurance') { if (k === 'y') insure(ctx, true); if (k === 'n') insure(ctx, false); }
       else if ((k === 'enter' || k === ' ') && (v.phase === 'idle' || v.phase === 'done')) { e.preventDefault(); deal(ctx); }
     };
@@ -96,7 +97,8 @@ export default {
     } else if (v.phase === 'player') {
       const al = v.allowed || {};
       const acts = h('div', { class: 'actions' });
-      for (const [k, code] of Object.entries(ACT)) {
+      if (al.draw) acts.append(btn('Deal card  ⏎', 'gold big', () => act(ctx, 'draw'), { disabled: ctx.sitting, title: 'Deal the second card to this split hand' }));
+      else for (const [k, code] of Object.entries(ACT)) {
         if (al[k] === undefined) continue;
         const opt = coach && coach.options && coach.options[k];
         const isRec = coach && coach.best === code;
@@ -132,12 +134,12 @@ function coachNode(coach, v, ctx, showCount) {
     out.append(h('div', { class: 'coach-best' }, h('b', null, coach.best === 'take' ? '★ Take insurance' : '★ Decline insurance')), h('p', null, coach.text));
     return out;
   }
-  out.append(h('div', { class: 'coach-best' }, h('div', { class: 'small muted' }, coach.title), h('b', null, '★ Best play: ' + coach.bestName), h('p', { class: 'small', style: { margin: '4px 0 0' } }, coach.options && Object.values(coach.options).find(o => o.best) ? Object.values(coach.options).find(o => o.best).text : '')));
+  out.append(h('div', { class: 'coach-best' }, h('div', { class: 'small muted' }, coach.title), h('b', null, '★ Best play: ' + coach.bestName), h('p', { class: 'small', style: { margin: '4px 0 0' } }, coach.options && Object.values(coach.options).find(o => o.best) ? Object.values(coach.options).find(o => o.best).text : (coach.text || ''))));
   if (coach.deviation) out.append(h('div', { class: 'coach-dev' }, h('b', null, '🔵 Count says: ' + coach.deviation.name), h('div', null, coach.deviation.text)));
   for (const [k, o] of Object.entries(coach.options || {})) {
     if (o.best) continue;
     out.append(h('div', { class: 'coach-opt no' }, h('b', null, NAMES[ACT[k]] + ' — not recommended'), o.text));
   }
-  out.append(h('p', { class: 'muted small' }, `Dealer busts ~${coach.bust}% with this upcard.`));
+  if (coach.bust != null) out.append(h('p', { class: 'muted small' }, `Dealer busts ~${coach.bust}% with this upcard.`));
   return out;
 }

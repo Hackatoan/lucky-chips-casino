@@ -278,6 +278,7 @@ const BUSTER = { 3: 2, 4: 2, 5: 4, 6: 12, 7: 50 };
 function canFor(st, bal) {
   const h = st.hands[st.cur];
   if (st.phase !== 'player' || !h) return {};
+  if (h.cards.length === 1) return { draw: true };
   const two = h.cards.length === 2;
   return {
     hit: !h.aceSplit, stand: true,
@@ -290,11 +291,8 @@ function advanceHand(ctx, st) {
   while (st.cur < st.hands.length) {
     const h = st.hands[st.cur];
     if (h.done) { st.cur++; continue; }
-    // a split hand needs its second card dealt when it becomes active
-    if (h.cards.length === 1) {
-      h.cards.push(drawCard(st));
-      if (h.aceSplit) { h.done = true; st.cur++; continue; }
-    }
+    // a split hand holding one card waits for the player to click "Deal card"
+    if (h.cards.length === 1) return;
     if (info(h.cards).total >= 21) { h.done = true; st.cur++; continue; }
     return;
   }
@@ -435,6 +433,7 @@ function coachFor(st, bal) {
     };
   }
   if (st.phase !== 'player' || !h) return null;
+  if (h.cards.length === 1) return { title: 'Split hand', best: 'draw', bestName: 'Deal the second card', options: {}, bust: null, text: 'Each split hand gets its second card when you click Deal card — then play it as a fresh hand.' };
   const can = canFor(st, bal);
   const up = val(st.dealer[0]);
   const bp = bestPlay(h.cards, up, can);
@@ -558,6 +557,15 @@ const actions = {
   stand: (ctx) => act(ctx, 'S'),
   double: (ctx) => act(ctx, 'D'),
   split: (ctx) => act(ctx, 'P'),
+  draw(ctx) {
+    const st = ctx.state;
+    if (!st || st.phase !== 'player') fail('No hand in play.');
+    const h = st.hands[st.cur];
+    if (!h || h.cards.length !== 1) fail('Nothing to deal.');
+    h.cards.push(drawCard(st));
+    if (h.aceSplit || info(h.cards).total >= 21) { h.done = true; st.cur++; }
+    advanceHand(ctx, st);
+  },
   surrender: (ctx) => act(ctx, 'R'),
 };
 
@@ -598,8 +606,7 @@ function act(ctx, code) {
     h.fromSplit = true; h.aceSplit = aces; h.bj = false;
     const nh = { cards: [second], bet: h.bet, done: false, fromSplit: true, aceSplit: aces };
     st.hands.splice(st.cur + 1, 0, nh);
-    h.cards.push(drawCard(st));
-    if (aces || info(h.cards).total >= 21) h.done = true;
+    // neither split hand gets its second card until the player clicks "Deal card"
   } else if (code === 'R') {
     h.surrendered = true; h.done = true;
   }

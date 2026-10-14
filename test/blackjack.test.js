@@ -13,6 +13,7 @@ for (let i = 0; i < 6000; i++) {
   let v = r.view, guard = 0;
   while (v.phase === 'insurance') { r = play(u, 'blackjack', 'insurance', { take: false }); v = r.view; }
   while (v.phase === 'player' && guard++ < 40) {
+    if (v.allowed.draw) { r = play(u, 'blackjack', 'draw', {}); v = r.view; continue; }
     const h = v.hands[v.cur];
     const cards = h.cards.map(c => 'AKQJT98765432'.length && (['2','3','4','5','6','7','8','9','T','J','Q','K','A'].indexOf(c[0]) + ['S','H','D','C'].indexOf(c[1]) * 13));
     const up = bj.val(['2','3','4','5','6','7','8','9','T','J','Q','K','A'].indexOf(v.dealer.cards[0][0]) );
