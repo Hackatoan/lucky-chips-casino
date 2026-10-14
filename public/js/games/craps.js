@@ -67,27 +67,30 @@ function addStage(ctx, b) {
   if (e) e.amount += amount; else s.staged.push({ key, type: b.type, num: b.num || 0, amount });
   sfx.play('chip'); drawStaged(ctx); drawControls(ctx);
 }
+const KIND = { place: 'Place', buy: 'Buy', lay: 'Lay', hard: 'Hard', big: 'Big' };
+// which extra bet types exist on each number (clicking the number itself is always a Place bet)
+const ALTS = n => ['buy', 'lay', ...([4, 6, 8, 10].includes(n) ? ['hard'] : []), ...(n === 6 || n === 8 ? ['big'] : [])];
 function drawLayout(ctx) {
   const s = ctx._cr, v = s.v; clear(s.layout);
-  const tool = TOOLS.find(t => t[0] === s.tool);
-  const onNum = tool && tool[2] === 'num';
   const cells = NUMS.map(n => {
-    const mine = v.bets.filter(b => b.num === n).map(b => h('span', { class: 'stk', title: b.name }, b.type[0].toUpperCase() + fmt(b.amount)));
-    const here = s.staged.filter(b => b.num === n).map(b => h('span', { class: 'stk staged', title: 'staged ' + b.type }, b.type[0].toUpperCase() + fmt(b.amount)));
-    return h('button', { type: 'button', class: 'cr-num' + (v.point === n ? ' point' : '') + (onNum ? ' armed' : ''), onclick: () => { if (!onNum) return ctx.toast('Pick Place / Buy / Lay / Hardway / Big first, then click a number.', 'info'); if (tool[0] === 'big' && n !== 6 && n !== 8) return ctx.toast('Big bets are only on 6 and 8.', 'bad'); if (tool[0] === 'hard' && (n === 5 || n === 9)) return ctx.toast('Hardways are on 4, 6, 8 and 10.', 'bad'); addStage(ctx, { type: tool[0], num: n }); } },
-      v.point === n ? h('i', { class: 'puck-mini' }, 'ON') : null, h('b', null, NUM_WORD[n] || n), h('span', { class: 'cr-stk' }, ...mine, ...here));
+    const mine = v.bets.filter(b => b.num === n).map(b => h('span', { class: 'stk', title: `${b.name} ${b.num} — on the table` }, `${KIND[b.type] || b.type} ${fmt(b.amount)}`));
+    const here = s.staged.filter(b => b.num === n).map(b => h('span', { class: 'stk staged', title: 'staged — placed when you roll' }, `${KIND[b.type] || b.type} ${fmt(b.amount)}`));
+    const add = type => { if (ctx.readonly) return; sfx.play('click'); addStage(ctx, { type, num: n }); drawLayout(ctx); };
+    return h('div', { class: 'cr-numcell' + (v.point === n ? ' point' : '') },
+      h('button', { type: 'button', class: 'cr-num' + (v.point === n ? ' point' : ''), title: `Place ${n}: ${s.defs.place.pays}. Click to bet your chip value.`, onclick: () => add('place') },
+        v.point === n ? h('i', { class: 'puck-mini' }, 'ON') : null, h('b', null, NUM_WORD[n] || n), h('span', { class: 'cr-stk' }, ...mine, ...here)),
+      h('div', { class: 'cr-alt' }, ALTS(n).map(t => h('button', { type: 'button', class: 'cr-altbtn', title: `${s.defs[t].name} ${n} — ${s.defs[t].pays} (edge ${(s.defs[t].edge * 100).toFixed(2)}%)`, onclick: () => add(t) }, KIND[t]))));
   });
   s.layout.append(h('div', { class: 'cr-nums' }, cells),
     h('div', { class: 'cr-lines' }, [['field', 'FIELD  2·3·4·9·10·11·12', 'one'], ['pass', 'PASS LINE', 'line'], ['dontpass', "DON'T PASS BAR", 'line'], ['come', 'COME', 'line'], ['dontcome', "DON'T COME", 'line']].map(([t, l]) => {
       const has = v.bets.filter(b => b.type === t && !b.pt).map(b => b.amount).reduce((a, b) => a + b, 0) + s.staged.filter(b => b.type === t).reduce((a, b) => a + b.amount, 0);
-      return h('button', { type: 'button', class: 'cr-line ' + t + (s.tool === t ? ' sel' : ''), onclick: () => { s.tool = t; addStage(ctx, { type: t }); drawTools(ctx); drawLayout(ctx); } }, l, has ? h('span', { class: 'stk' }, fmt(has)) : null);
+      return h('button', { type: 'button', class: 'cr-line ' + t, title: s.defs[t] ? `${s.defs[t].pays} · edge ${(s.defs[t].edge * 100).toFixed(2)}%` : '', onclick: () => { if (ctx.readonly) return; addStage(ctx, { type: t }); drawLayout(ctx); } }, l, has ? h('span', { class: 'stk' }, fmt(has)) : null);
     })));
 }
 function drawTools(ctx) {
   const s = ctx._cr;
-  s.tools.replaceChildren(h('span', { class: 'muted small' }, 'Bet type:'),
-    ...TOOLS.map(([t, l, k]) => h('button', { type: 'button', class: 'pill' + (s.tool === t ? ' on' : ''), title: s.defs[t] ? `${s.defs[t].pays} · edge ${(s.defs[t].edge * 100).toFixed(2)}%\n${s.defs[t].desc}` : '', onclick: () => { s.tool = t; sfx.play('click'); if (k !== 'num') addStage(ctx, { type: t }); drawTools(ctx); drawLayout(ctx); } }, l)),
-    h('select', { 'aria-label': 'Proposition bets', onchange: e => { if (e.target.value) addStage(ctx, { type: e.target.value }); e.target.value = ''; } }, h('option', { value: '' }, 'Prop bets…'), PROPS.map(p => h('option', { value: p }, `${s.defs[p].name} — ${s.defs[p].pays} (${(s.defs[p].edge * 100).toFixed(1)}%)`))));
+  s.tools.replaceChildren(h('span', { class: 'muted small' }, 'Click a bet on the layout to add your chip value — numbers are Place bets; the small buttons under each number are Buy, Lay, Hard and Big.'),
+    h('select', { 'aria-label': 'Proposition bets', onchange: e => { if (e.target.value) { addStage(ctx, { type: e.target.value }); drawLayout(ctx); } e.target.value = ''; } }, h('option', { value: '' }, 'Prop bets…'), PROPS.map(p => h('option', { value: p }, `${s.defs[p].name} — ${s.defs[p].pays} (${(s.defs[p].edge * 100).toFixed(1)}% edge)`))));
 }
 function drawStaged(ctx) {
   const s = ctx._cr; clear(s.stagedBox);
@@ -134,7 +137,7 @@ async function commit(ctx, roll) {
     const bets = s.staged.map(b => ({ type: b.type, num: b.num || undefined, amount: b.amount }));
     const r = tab ? await ctx.primary('roll', { bets }) : await ctx.call('place', { bets });
     if (!r) return;
-    s.staged = []; drawStaged(ctx); drawLayout(ctx);
+    s.staged = []; drawStaged(ctx); drawLayout(ctx); drawControls(ctx);
   }
   if (!roll) return;
   if (tab) { try { await ctx.tableCall('ready'); } catch (e) { ctx.toast(e.message, 'bad'); } return; }

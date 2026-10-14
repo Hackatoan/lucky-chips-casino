@@ -610,3 +610,13 @@ table.chart { border-collapse: separate; border-spacing: 2px; font-size: .85rem;
   .pk-board .card, .pk-hole .card, .pk-slot { width: 34px; height: 50px; } .pk-hole .card.mine { width: 40px; height: 58px; }
   .pk-seat { min-width: 70px; } .pk-name { font-size: .7rem; max-width: 80px; } .pk-stack { font-size: .68rem; }
 }
+
+/* craps: bets are picked by clicking the layout itself */
+.cr-numcell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cr-numcell .cr-num { width: 100%; }
+.cr-alt { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.cr-altbtn { font-size: .66rem; font-weight: 700; padding: 2px 6px; border-radius: 99px; background: rgba(0,0,0,.35); color: #cfe4d8; border: 1px solid rgba(255,255,255,.18); cursor: pointer; }
+.cr-altbtn:hover { background: rgba(243,194,83,.25); border-color: rgba(243,194,83,.6); }
+.cr-stk .stk { white-space: nowrap; background: var(--gold); color: #2b1d00; border-radius: 99px; padding: 1px 7px; font-size: .64rem; font-weight: 800; }
+.cr-stk .stk.staged { background: transparent; color: var(--gold); border: 1px dashed var(--gold); }
+.cr-num { align-items: center; }
