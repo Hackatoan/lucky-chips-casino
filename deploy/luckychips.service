@@ -6,7 +6,7 @@ After=network.target
 User=ubuntu
 WorkingDirectory=/opt/luckychips
 ExecStart=/opt/node/bin/node server.js
-Environment=PORT=3000 HOST=127.0.0.1
+Environment=PORT=8445 HOST=0.0.0.0 TLS_CERT=/opt/luckychips/tls.crt TLS_KEY=/opt/luckychips/tls.key
 Restart=always
 MemoryMax=300M
 
