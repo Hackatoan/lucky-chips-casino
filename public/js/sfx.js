@@ -1,5 +1,5 @@
 // Synthesised casino sound effects (Web Audio API) — no audio files needed.
-let ac = null, master = null, enabled = true, vol = 0.55, quiet = false;
+let ac = null, master = null, enabled = true, vol = 0.55, quiet = false, forced = false;
 try { enabled = localStorage.getItem('lc.sound') !== '0'; const v = localStorage.getItem('lc.vol'); if (v !== null) vol = Math.min(1, Math.max(0, Number(v))); } catch {}
 
 let gestured = false;
@@ -7,7 +7,7 @@ for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, 
 // browsers refuse to start audio before a user gesture and log a warning each time; stay silent until one happens
 function ctx() {
   if (!ac) {
-    if (!(navigator.userActivation ? navigator.userActivation.hasBeenActive : gestured)) return null;
+    if (!forced && !(navigator.userActivation ? navigator.userActivation.hasBeenActive : gestured)) return null;       // the unattended /stream scene sets `force` (its browser has autoplay allowed)
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ac = new AC();
@@ -108,6 +108,8 @@ const S = {
 
 export const sfx = {
   play(name, ...a) { try { if (enabled && !quiet && S[name]) S[name](...a); } catch {} },
+  get force() { return forced; },
+  set force(v) { forced = !!v; if (forced) { enabled = true; } },
   get quiet() { return quiet; },
   set quiet(v) { quiet = !!v; },
   // outcome-driven sound for a finished round

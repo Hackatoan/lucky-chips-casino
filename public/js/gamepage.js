@@ -44,6 +44,7 @@ export async function streamPage(shell, onLeave) {
   let now;
   try { now = await realApi('/stream/now'); } catch (e) { shell(h('div', { class: 'panel center' }, 'Stream is starting…')); setTimeout(() => location.reload(), 5000); return; }
   document.body.classList.add('stream');
+  sfx.force = true; sfx.quiet = false;                      // the broadcast browser has no user gesture: sound effects must still play
   onLeave(() => document.body.classList.remove('stream'));
   const bar = h('div', { class: 'stream-bar' });
   const left = ms => { const m = Math.max(0, Math.floor(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
