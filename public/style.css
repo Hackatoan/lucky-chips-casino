@@ -532,3 +532,13 @@ table.chart { border-collapse: separate; border-spacing: 2px; font-size: .85rem;
 .other-name { font-weight: 700; font-size: .85rem; margin-bottom: 4px; }
 .other-inner { zoom: .55; pointer-events: none; }
 .other-inner .actions, .other-inner .controls { display: none; }
+
+.wheel-status { text-align: center; font-weight: 600; padding: 8px 12px; border-radius: 10px; margin: 6px auto; max-width: 560px; font-size: .92rem; }
+.wheel-status.open { background: rgba(46,160,90,.18); border: 1px solid rgba(46,160,90,.5); color: #b9f0cc; }
+.wheel-status.closed { background: rgba(215,154,30,.16); border: 1px solid rgba(215,154,30,.5); color: #f3d68a; }
+
+.btn.busy { opacity: .55; pointer-events: none; }
+.round-bar { text-align: center; font-weight: 600; padding: 8px 12px; border-radius: 10px; margin-bottom: 8px; font-size: .92rem; }
+.round-bar.open { background: rgba(46,160,90,.18); border: 1px solid rgba(46,160,90,.5); color: #b9f0cc; }
+.round-bar.closed { background: rgba(215,154,30,.16); border: 1px solid rgba(215,154,30,.5); color: #f3d68a; }
+.felt.bets-closed .controls, .felt.bets-closed .actions, .felt.bets-closed .betboard, .felt.bets-closed .bp-chips, .felt.bets-closed .bb-grid { opacity: .5; pointer-events: none; }

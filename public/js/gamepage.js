@@ -61,6 +61,7 @@ async function mountGame(id, shell, onLeave, table) {
   const rulesBox = h('div', { class: 'rules' });
   const tableBox = h('div', { class: 'tblbox' });
   const othersBox = h('div', { class: 'others' });
+  const roundBar = h('div', { class: 'round-bar', hidden: true });
   const settings = () => state.user.settings || {};
   const myName = () => state.user.display;
 
@@ -92,6 +93,7 @@ async function mountGame(id, shell, onLeave, table) {
       if (ctx.readonly) return null;
       if (!table || table.role !== 'player' || g.shared.mode === 'parallel' || !(g.shared.primary || []).includes(action)) return ctx.call(action, body);
       if (ctx.busy) return null;
+      if (stage.classList.contains('bets-closed')) { toast('Bets are closed — wait for the next round.', 'info'); return null; }
       ctx.busy = true;
       try {
         const r = await api(`/table/${table.code}/place`, body || {});
@@ -167,13 +169,14 @@ async function mountGame(id, shell, onLeave, table) {
 
   const isBankerHost = () => !!(table && table.snap && table.snap.bank && table.snap.hostName === myName());
   const spectating = () => !!table && (table.role === 'viewer' || isBankerHost());
+  if (botTable) ctx.coachOn = () => true;                 // watching bots: always show the coach's read on the bot's hand
   const items = [['coach', '🎓 Coach', coachBox], ['review', '📋 Review', reviewBox]];
   if (table) items.unshift(['table', table.role === 'viewer' ? '👁 Gallery' : '👥 Table', tableBox]);
   items.push(['rules', '📖 Rules', rulesBox]);
-  const tabItems = table && (table.role === 'viewer' || (table.snap.bank && table.snap.hostName === myName())) ? items.filter(i => i[0] !== 'coach' && i[0] !== 'review') : items;
+  const tabItems = table && (table.role === 'viewer' || (table.snap.bank && table.snap.hostName === myName())) ? items.filter(i => i[0] !== 'review' && (i[0] !== 'coach' || botTable)) : items;
   const tabset = tabs(tabItems, { active: table ? 'table' : 'coach', onChange: id2 => { if (id2 === 'review' && ctx.tab && ctx.tab.btns.review) { const d = ctx.tab.btns.review.querySelector('.dot'); if (d) d.remove(); } } });
   ctx.tab = tabset;
-  shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, stage, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
+  shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, roundBar, stage, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
   if (first.last) ctx.showReview(first.last, true);
 
   // ===================== shared table =====================
@@ -193,7 +196,7 @@ async function mountGame(id, shell, onLeave, table) {
     else stage.append(h('div', { class: 'spectator-banner' }, botTable ? '🤖 Bots are playing — you\'re watching' : isBankerHost() ? '🏦 You\'re the banker — the table bets against you' : '👁 You\'re watching table ' + table.code));
     buildTablePanel();
     connect();
-    onLeave(() => { if (es) es.close(); clearInterval(tick); for (const o of others.values()) if (mod.destroy) { try { mod.destroy(o.sc); } catch {} } if (mod.destroy) mod.destroy(ctx); });
+    onLeave(() => { if (es) es.close(); clearInterval(tick); clearInterval(roundTick); for (const o of others.values()) if (mod.destroy) { try { mod.destroy(o.sc); } catch {} } if (mod.destroy) mod.destroy(ctx); });
   }
 
   async function leaveTable() { try { await ctx.tableCall('leave'); } catch {} sfx.play('click'); go(botTable ? '#/arena' : '#/g/' + id); }
@@ -318,7 +321,7 @@ async function mountGame(id, shell, onLeave, table) {
     // stage for spectators
     if (spectating()) renderSpectator(s);
     if (mod.onTable && !spectating()) mod.onTable(ctx, s, prevSnap);
-    renderOthers(s);
+    renderOthers(s); updateRoundBar(s);
   }
   async function enqueue() { try { const r = await ctx.tableCall('queue'); tp.queued = true; toast(`You're #${r.position} in the queue — you'll be seated automatically.`, 'good'); onState(snap); } catch (e) { toast(e.message, 'bad'); } }
   async function unqueue() { try { await ctx.tableCall('unqueue'); tp.queued = false; onState(snap); } catch (e) { toast(e.message, 'bad'); } }
@@ -368,6 +371,22 @@ async function mountGame(id, shell, onLeave, table) {
 
   // ----- seated players at a parallel table see everyone else's hand live, beneath their own -----
   const others = new Map();                          // name -> { box, inner, sc }
+  // ----- shared-outcome tables: say plainly whether bets are open, and lock the board while they're not -----
+  let roundTick = null;
+  function updateRoundBar(s) {
+    clearInterval(roundTick);
+    const on = table && s.mode === 'simul' && !spectating() && !s.bot;
+    roundBar.hidden = !on; if (!on) { stage.classList.remove('bets-closed'); return; }
+    const skew = (s.now || Date.now()) - Date.now();
+    const paint = () => {
+      const open = s.phase === 'betting', left = s.deadline ? Math.max(0, Math.ceil((s.deadline - Date.now() - skew) / 1000)) : null;
+      const me = s.players.find(p => p.name === myName()), placed = me && me.staked > 0;
+      roundBar.className = 'round-bar ' + (open ? 'open' : 'closed');
+      roundBar.textContent = open ? (placed ? `✔ Your bets are in — round starts ${left !== null ? 'in ' + left + 's' : 'when everyone is ready'}. You can still add chips.` : `🟢 Betting is open${left !== null ? ' — ' + left + 's left' : ''}. Place your chips, then confirm.`) : '🎲 Round in progress — bets are closed until the next round.';
+      stage.classList.toggle('bets-closed', !open);
+    };
+    paint(); if (s.phase === 'betting' && s.deadline) roundTick = setInterval(paint, 500);
+  }
   function renderOthers(s) {
     const want = (table && s.mode === 'parallel' && !spectating() && s.pviews)
       ? s.players.filter(p => !p.banker && p.name !== myName() && s.pviews[p.name]).map(p => p.name) : [];
@@ -398,7 +417,7 @@ async function mountGame(id, shell, onLeave, table) {
       spec.bar.replaceChildren(h('span', { class: 'muted small' }, 'Watching:'), ...names.map(n => h('button', { class: 'pill' + (n === spec.watch ? ' on' : ''), onclick: () => { spec.watch = n; spec.sctx = null; renderSpectator(s); } }, n)));
       if (!pv) { spec.inner.replaceChildren(h('p', { class: 'center muted' }, spec.watch ? `Waiting for ${spec.watch} to play…` : 'Nobody is seated yet.')); spec.sctx = null; return; }
       if (!spec.sctx || spec.sctx.__who !== spec.watch) {
-        const sc = Object.create(ctx); sc.__who = spec.watch; sc.stage = spec.inner; sc.readonly = true; sc.table = null; sc.setCoach = () => {}; sc.call = sc.primary = async () => null; sc.coachOn = () => false; sc.toast = () => {};
+        const sc = Object.create(ctx); sc.__who = spec.watch; sc.stage = spec.inner; sc.readonly = true; sc.table = null; sc.setCoach = botTable ? (node => ctx.setCoach(node)) : () => {}; sc.call = sc.primary = async () => null; sc.coachOn = () => botTable; sc.toast = () => {};
         spec.inner.replaceChildren(); stage.classList.add('readonly');
         try { mod.init(sc); } catch (e) { console.error(e); }
         spec.sctx = sc;

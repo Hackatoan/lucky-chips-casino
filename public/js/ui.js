@@ -210,7 +210,17 @@ export function timeAgo(ts) {
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // tiny helpers shared by the game clients
-export const btn = (label, cls, onclick, extra = {}) => h('button', { type: 'button', class: 'btn ' + (cls || ''), onclick, ...extra }, label);
+// Buttons whose handler returns a promise lock themselves until it settles, so nobody can fire a second spin/deal
+// while the first is still animating (every game's action handler awaits its own animation).
+export const btn = (label, cls, onclick, extra = {}) => {
+  const b = h('button', { type: 'button', class: 'btn ' + (cls || ''), ...extra }, label);
+  if (typeof onclick === 'function') b.addEventListener('click', async e => {
+    if (b.dataset.busy) return;
+    const r = onclick(e);
+    if (r && typeof r.then === 'function') { b.dataset.busy = '1'; b.classList.add('busy'); try { await r; } catch (err) { console.error(err); } finally { delete b.dataset.busy; b.classList.remove('busy'); } }
+  });
+  return b;
+};
 export function resultBanner(a) {
   if (!a) return null;
   return h('div', { class: 'banner-result ' + (a.net > 0 ? 'win' : a.net < 0 ? 'lose' : '') }, a.headline, ' ', h('span', { class: 'result-pill ' + (a.net > 0 ? 'win' : a.net < 0 ? 'lose' : 'push') }, a.net === 0 ? 'Even' : sgn(a.net)));
