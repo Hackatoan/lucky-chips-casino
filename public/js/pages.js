@@ -119,7 +119,7 @@ export async function lobbyPage() {
           const list = r.games.filter(g => g.category === cat);
           if (!list.length) return null;
           return h('div', null, h('h2', { style: { margin: '18px 0 8px' } }, label), ...list.map(g => h('div', { class: 'panel', style: { marginBottom: '10px' } },
-            h('div', { class: 'row' }, h('h3', { style: { margin: 0, cursor: 'pointer' }, title: 'Quick play', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, g.icon + ' ' + g.name), badge(g.mode === 'simul' ? 'shared outcome' : 'own hands', ''), h('span', { class: 'muted small' }, `up to ${g.max} players per table`), h('span', { class: 'grow' }),
+            h('div', { class: 'row' }, h('h3', { style: { margin: 0, cursor: 'pointer' }, title: 'Quick play', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, g.icon + ' ' + g.name), badge(g.mode === 'simul' ? 'shared outcome' : g.mode === 'rounds' ? 'shared dealer' : 'own hands', ''), h('span', { class: 'muted small' }, `up to ${g.max} players per table`), h('span', { class: 'grow' }),
               g.full ? h('button', { class: 'btn gold', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, `⏳ Join queue (${g.queue} waiting)`) : h('button', { class: 'btn gold', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, '⚡ Quick play'),
               h('button', { class: 'btn', onclick: () => privateTableModal(g.id) }, '🔗 Private table')),
             g.full ? h('p', { class: 'small gold', style: { margin: '6px 0 0' } }, `All ${g.maxTables} public tables are full — new players queue and are seated in order.`) : null,
@@ -141,19 +141,23 @@ export async function lobbyPage() {
 // ---------------------------------------------------------------- bot arena
 export async function arenaPage() {
   const body = h('div', { class: 'grid' });
+  const wallBtn = h('a', { class: 'btn gold', href: '#/multi', title: 'Open the tables you ticked with ＋ Wall side by side' }, '📺 Watch several');
   shell(h('div', null,
     h('div', { class: 'sec-title' }, h('div', null, h('h1', null, '🤖 Bot arena'), h('div', { class: 'muted' }, 'One table per game where house bots play forever — following the coach\'s advice. Watch to learn strategy, or just enjoy the show.')),
-      h('a', { class: 'btn gold', href: '#/multi' }, '📺 Multi-view')),
-    h('p', { class: 'muted small' }, 'Bots use demo chips (nothing is saved or ranked), you can\'t take a seat, and tables pause automatically when nobody is watching to save resources.'),
+      wallBtn),
+    h('p', { class: 'muted small' }, 'Tick ＋ Wall on any bot tables, then press Watch several to see them side by side. Bots use demo chips (nothing is saved or ranked), you can\'t take a seat, and tables pause automatically when nobody is watching to save resources.'),
     body), 'lobby');
   let stop = false; onLeave(() => { stop = true; });
   const load = async () => {
     if (stop) return;
     try {
       const r = await api('/arena');
+      const wall = () => store.get('mv.codes', []);
+      const toggle = (code, btnEl) => { let w = wall(); if (w.includes(code)) w = w.filter(c => c !== code); else if (w.length >= 6) return toast('The multi-view wall holds up to six tables.', 'bad'); else w.push(code); store.set('mv.codes', w); btnEl.classList.toggle('on', w.includes(code)); btnEl.textContent = w.includes(code) ? '✔ On wall' : '＋ Wall'; wallBtn.textContent = `📺 Watch ${w.length ? w.length + ' selected' : 'several'}`; };
+      wallBtn.textContent = `📺 Watch ${wall().length ? wall().length + ' selected' : 'several'}`;
       body.replaceChildren(...r.arena.map(a => h('a', { class: 'tile cat-' + a.category, href: `#/t/${a.code}/watch` },
         h('div', { class: 'tile-art' }, h('span', { class: 'ico' }, a.icon), h('span', { class: 'multi' }, a.live ? '🔴 LIVE' : '⏸ paused')),
-        h('div', { class: 'tile-body' }, h('h3', null, a.name), h('div', { class: 'muted small' }, a.mode === 'simul' ? `Round ${a.round} · shared outcome` : 'Bots play their own hands'), h('div', { class: 'row' }, badge('👁 ' + a.watching), h('span', { class: 'btn gold sm' }, 'Watch'))))));
+        h('div', { class: 'tile-body' }, h('h3', null, a.name), h('div', { class: 'muted small' }, a.mode === 'simul' ? `Round ${a.round} · shared outcome` : a.mode === 'rounds' ? `Round ${a.round} · one dealer, bots play together` : 'Bots play their own hands'), h('div', { class: 'row' }, badge('👁 ' + a.watching), h('span', { class: 'btn gold sm' }, 'Watch'), h('button', { class: 'btn sm' + (wall().includes(a.code) ? ' on' : ''), title: 'Add to the multi-view wall (up to 6)', onclick: e => { e.preventDefault(); e.stopPropagation(); toggle(a.code, e.currentTarget); } }, wall().includes(a.code) ? '✔ On wall' : '＋ Wall'))))));
     } catch (e) { body.replaceChildren(h('p', { class: 'lose' }, e.message)); }
     if (!stop) { const t = setTimeout(load, 6000); onLeave(() => clearTimeout(t)); }
   };

@@ -404,6 +404,10 @@ async function api(req, res, url) {
       if (!throttle('act:' + user.id, 40, 5000)) return json(res, 429, { error: 'Easy there — too many actions per second.' });
       const seat = !demo && mod.shared && tables.seatedAt(user.id, mod.id);
       if (seat && mod.shared.mode !== 'parallel' && mod.shared.primary.includes(gm[2])) return json(res, 409, { error: `You're seated at table ${seat}. Place your bets at the table (or leave it first).` });
+      if (seat && mod.shared.mode === 'rounds') {            // shared-dealer table: the table decides who may act and when
+        const t = tables.get(seat), o = tables.roundAct(t, fresh, gm[2], b);
+        return json(res, 200, { view: o.view, analysis: o.analysis, balance: o.balance, ended: o.ended, demo: false });
+      }
       const out = engine.run(fresh, mod.id, mod, gm[2], b, demo ? { demo: true } : tables.engineOpts(user.id, mod.id));
       if (!demo) tables.notifyPlay(fresh, mod.id, { view: out.view, analysis: out.analysis });
       return json(res, 200, { view: out.view, analysis: out.analysis, balance: out.ctx.bal, ended: out.ctx.ended, demo });
@@ -474,6 +478,10 @@ const SEC_HEADERS = {
 
 const handler = async (req, res) => {
   for (const [k, v] of Object.entries(SEC_HEADERS)) res.setHeader(k, v);
+  // Cloudflare injects a tiny inline bootstrap script into HTML (bot detection). A per-response nonce in the CSP lets it add the
+  // matching nonce attribute itself, so the policy stays strict (no 'unsafe-inline') and nothing has to be switched off at Cloudflare.
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader('Content-Security-Policy', SEC_HEADERS['Content-Security-Policy'].replace("script-src 'self'", `script-src 'self' 'nonce-${nonce}'`));
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); return res.end(); }
   try {

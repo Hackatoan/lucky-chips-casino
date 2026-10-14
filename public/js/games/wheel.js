@@ -37,7 +37,7 @@ export default {
   },
   destroy(ctx) { if (ctx._wh) clearInterval(ctx._wh.tick); },
   async onResult(ctx, data) { const s = ctx._wh; if (s && data.outcome && data.outcome.idx !== undefined) await to(s, data.outcome.idx, data.outcome.label); },
-  spectate(ctx, snap) { if (!ctx._wh) { this.init(ctx); ctx._wh.board.el.remove(); ctx._wh.controls.remove(); ctx._wh.svg = svgWheel(Object.keys(ctx.game.meta.bets).length ? ctx.view.wheel : []); ctx._wh.box.replaceChildren(h('div', { class: 'rl-pointer' }, '▼'), ctx._wh.svg); ctx._wh.n = ctx.view.wheel.length; } const s = ctx._wh; if (snap.outcome && !s.seen) { s.seen = true; s.res.textContent = 'Last: ' + snap.outcome.label; } },
+  spectate(ctx, snap) { if (!ctx._wh) { this.init(ctx); ctx._wh.board.el.remove(); ctx._wh.controls.remove(); const labels = ctx.game.meta.wheel || ctx.view.wheel || []; ctx._wh.svg = svgWheel(labels); ctx._wh.box.replaceChildren(h('div', { class: 'rl-pointer' }, '▼'), ctx._wh.svg); ctx._wh.n = labels.length; ctx._wh.status.remove(); } const s = ctx._wh; if (snap.outcome && !s.seen) { s.seen = true; s.res.textContent = 'Last: ' + snap.outcome.label; } },
 };
 // One place decides what the player may do and says so: green = bets open, amber = wheel busy / bets closed.
 function apply(ctx) {

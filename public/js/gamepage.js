@@ -97,7 +97,7 @@ async function mountGame(id, shell, onLeave, table) {
       ctx.busy = true;
       try {
         const r = await api(`/table/${table.code}/place`, body || {});
-        setBalance(r.balance); ctx.view = r.view; mod.render(r.view, ctx);
+        setBalance(r.balance); if (r.view) ctx.view = r.view; mod.render(ctx.view, ctx);
         sfx.play('chips'); toast(g.shared.repeat ? 'Bets placed.' : 'Bets placed — the round starts when the timer ends or everyone is ready.', 'good');
         return r;
       } catch (e) { toast(e.message, 'bad'); return null; }
@@ -288,6 +288,13 @@ async function mountGame(id, shell, onLeave, table) {
     const upd = () => {
       if (s.mode === 'parallel') { tp.status.textContent = s.bot ? '🤖 Bots play endlessly while someone is watching.' : 'Everyone plays at their own pace. Results appear in the live feed.'; tp.bar.hidden = true; return; }
       if (s.phase === 'results') { tp.status.textContent = `Round ${s.round - 1} complete — next round starting…`; tp.bar.hidden = true; return; }
+      if (s.mode === 'rounds' && s.phase !== 'betting') {
+        if (!s.deadline) { tp.status.textContent = s.phase === 'dealing' ? 'Dealing…' : `Round ${s.round}…`; tp.bar.hidden = true; return; }
+        const left = Math.max(0, s.deadline - (Date.now() + offset));
+        if (tp.dl !== s.deadline) { tp.dl = s.deadline; tp.dlTotal = Math.max(left, 1); }
+        tp.status.textContent = `Round ${s.round}: ${s.phase === 'insurance' ? 'insurance decisions' : 'everyone is playing'} — ${Math.ceil(left / 1000)}s`;
+        tp.bar.hidden = false; tp.bar.firstChild.style.width = (left / tp.dlTotal * 100).toFixed(1) + '%'; return;
+      }
       if (!s.deadline) { tp.status.textContent = s.repeat ? 'Place your bets, then press Go.' : 'Place your bets — the round starts when the first bet lands.'; tp.bar.hidden = true; return; }
       const left = Math.max(0, s.deadline - (Date.now() + offset));
       tp.status.textContent = `Round ${s.round}: betting closes in ${Math.ceil(left / 1000)}s`;
@@ -307,7 +314,7 @@ async function mountGame(id, shell, onLeave, table) {
       else {
         if (s.mode !== 'parallel') {
           if (!s.repeat) btns.push(h('button', { class: 'btn sm', disabled: !(me && me.staked) || s.phase !== 'betting', onclick: takeBack }, '↩ Take bets back'));
-          btns.push(h('button', { class: 'btn sm', disabled: s.phase !== 'betting', onclick: () => ctx.tableCall('ready').then(() => sfx.play('click')).catch(e => toast(e.message, 'bad')) }, s.repeat ? '🎲 Go (roll now)' : '✔ I\'m ready'));
+          if (s.mode !== 'rounds') btns.push(h('button', { class: 'btn sm', disabled: s.phase !== 'betting', onclick: () => ctx.tableCall('ready').then(() => sfx.play('click')).catch(e => toast(e.message, 'bad')) }, s.repeat ? '🎲 Go (roll now)' : '✔ I\'m ready'));
         }
         btns.push(h('button', { class: 'btn sm', title: 'Skip rounds without losing your seat. Your seat is protected for one full round; after that, someone waiting can take it.', disabled: !!(me && (me.staked || me.active)), onclick: () => ctx.tableCall('sitout').then(() => sfx.play('click')).catch(e => toast(e.message, 'bad')) }, '🪑 Sit out a round'));
       }
@@ -325,7 +332,7 @@ async function mountGame(id, shell, onLeave, table) {
   }
   async function enqueue() { try { const r = await ctx.tableCall('queue'); tp.queued = true; toast(`You're #${r.position} in the queue — you'll be seated automatically.`, 'good'); onState(snap); } catch (e) { toast(e.message, 'bad'); } }
   async function unqueue() { try { await ctx.tableCall('unqueue'); tp.queued = false; onState(snap); } catch (e) { toast(e.message, 'bad'); } }
-  async function takeBack() { try { const r = await ctx.tableCall('unplace'); setBalance(r.balance); ctx.view = r.view; mod.render(r.view, ctx); sfx.play('chip'); } catch (e) { toast(e.message, 'bad'); } }
+  async function takeBack() { try { const r = await ctx.tableCall('unplace'); setBalance(r.balance); if (r.view) ctx.view = r.view; mod.render(ctx.view, ctx); sfx.play('chip'); } catch (e) { toast(e.message, 'bad'); } }
   async function kick(name) { if (!confirm(`Remove ${name} from the table? They won't be able to rejoin.`)) return; try { await ctx.tableCall('kick', { name }); } catch (e) { toast(e.message, 'bad'); } }
 
   function drawHost(s, host) {
@@ -342,7 +349,7 @@ async function mountGame(id, shell, onLeave, table) {
   // provably fair panel
   let lastVerified = '';
   function drawFair(s) {
-    const f = s.fair; if (!f) return;
+    const f = s.fair; tp.fair.hidden = !f; if (!f) return;
     const rev = f.revealed[f.revealed.length - 1];
     const key = f.commit + (rev ? rev.seed : '');
     if (key === lastVerified && tp.fair.dataset.k === key) return;
@@ -375,17 +382,27 @@ async function mountGame(id, shell, onLeave, table) {
   let roundTick = null;
   function updateRoundBar(s) {
     clearInterval(roundTick);
-    const on = table && s.mode === 'simul' && !spectating() && !s.bot;
+    const rounds = s.mode === 'rounds';
+    const on = table && (s.mode === 'simul' || rounds) && (rounds || (!spectating() && !s.bot));
     roundBar.hidden = !on; if (!on) { stage.classList.remove('bets-closed'); return; }
     const skew = (s.now || Date.now()) - Date.now();
     const paint = () => {
       const open = s.phase === 'betting', left = s.deadline ? Math.max(0, Math.ceil((s.deadline - Date.now() - skew) / 1000)) : null;
       const me = s.players.find(p => p.name === myName()), placed = me && me.staked > 0;
+      if (rounds) {
+        const act = s.phase === 'play' || s.phase === 'insurance';
+        roundBar.className = 'round-bar ' + (open || act ? 'open' : 'closed');
+        roundBar.textContent = open ? (placed ? `✔ Your bet is in — dealing ${left !== null ? 'in ' + left + 's' : 'when everyone has bet'}.` : `🟢 Betting is open${left !== null ? ' — ' + left + 's left' : ''}. Place your bet; everyone is dealt together.`)
+          : s.phase === 'insurance' ? `🛡 Insurance — decide now${left !== null ? ' (' + left + 's)' : ''}. The dealer shows an Ace.`
+          : s.phase === 'play' ? `🃏 Everyone plays at once — ${left !== null ? left + 's left; idle seats stand automatically' : 'make your moves'}.`
+          : s.phase === 'results' ? '🏁 Round over — next round opens in a moment.' : 'Dealing…';
+        return;
+      }
       roundBar.className = 'round-bar ' + (open ? 'open' : 'closed');
       roundBar.textContent = open ? (placed ? `✔ Your bets are in — round starts ${left !== null ? 'in ' + left + 's' : 'when everyone is ready'}. You can still add chips.` : `🟢 Betting is open${left !== null ? ' — ' + left + 's left' : ''}. Place your chips, then confirm.`) : '🎲 Round in progress — bets are closed until the next round.';
       stage.classList.toggle('bets-closed', !open);
     };
-    paint(); if (s.phase === 'betting' && s.deadline) roundTick = setInterval(paint, 500);
+    paint(); if ((s.phase === 'betting' || (rounds && (s.phase === 'play' || s.phase === 'insurance'))) && s.deadline) roundTick = setInterval(paint, 500);
   }
   function renderOthers(s) {
     const want = (table && s.mode === 'parallel' && !spectating() && s.pviews)
@@ -409,20 +426,34 @@ async function mountGame(id, shell, onLeave, table) {
   // ----- stage for viewers / banker host -----
   function renderSpectator(s) {
     if (s.mode === 'parallel') {
+      // every seated player's hand is on screen at once; click a tile to make it the one the coach explains
       const names = s.players.filter(p => !p.banker).map(p => p.name);
-      if (!spec) spec = { watch: names[0] || null, sctx: null };
+      if (!spec) spec = { watch: names[0] || null, tiles: new Map(), grid: null };
       if (!spec.watch || !names.includes(spec.watch)) spec.watch = names[0] || null;
-      const pv = spec.watch && s.pviews ? s.pviews[spec.watch] : null;
-      if (!spec.bar) { spec.bar = h('div', { class: 'row', style: { justifyContent: 'center', marginBottom: '8px' } }); spec.inner = h('div', { class: 'spectate-inner' }); stage.replaceChildren(h('div', { class: 'spectator-banner' }, botTable ? '🤖 Bots are playing — pick one to watch' : '👁 Watching ' + (s.mode === 'parallel' ? 'a player' : 'the table')), spec.bar, spec.inner); }
-      spec.bar.replaceChildren(h('span', { class: 'muted small' }, 'Watching:'), ...names.map(n => h('button', { class: 'pill' + (n === spec.watch ? ' on' : ''), onclick: () => { spec.watch = n; spec.sctx = null; renderSpectator(s); } }, n)));
-      if (!pv) { spec.inner.replaceChildren(h('p', { class: 'center muted' }, spec.watch ? `Waiting for ${spec.watch} to play…` : 'Nobody is seated yet.')); spec.sctx = null; return; }
-      if (!spec.sctx || spec.sctx.__who !== spec.watch) {
-        const sc = Object.create(ctx); sc.__who = spec.watch; sc.stage = spec.inner; sc.readonly = true; sc.table = null; sc.setCoach = botTable ? (node => ctx.setCoach(node)) : () => {}; sc.call = sc.primary = async () => null; sc.coachOn = () => botTable; sc.toast = () => {};
-        spec.inner.replaceChildren(); stage.classList.add('readonly');
-        try { mod.init(sc); } catch (e) { console.error(e); }
-        spec.sctx = sc;
+      if (!spec.grid) {
+        spec.grid = h('div', { class: 'spec-grid' });
+        stage.replaceChildren(h('div', { class: 'spectator-banner' }, botTable ? '🤖 Bots are playing — every hand is shown live (click one to hear the coach on it)' : '👁 You\'re watching — every player\'s hand is shown live'), spec.grid);
+        stage.classList.add('readonly');
       }
-      try { mod.render(pv, spec.sctx); } catch (e) { console.error(e); }
+      for (const [n, t] of spec.tiles) if (!names.includes(n)) { try { if (mod.destroy) mod.destroy(t.sc); } catch {} t.box.remove(); spec.tiles.delete(n); }
+      const focus = n => { spec.watch = n; for (const [k, t] of spec.tiles) { t.box.classList.toggle('sel', k === n); } const pv = snap && snap.pviews && snap.pviews[n]; if (pv) { try { mod.render(pv, spec.tiles.get(n).sc); } catch (e) { console.error(e); } } };
+      for (const n of names) {
+        let t = spec.tiles.get(n);
+        if (!t) {
+          const inner = h('div', { class: 'spec-inner' });
+          const box = h('div', { class: 'spec-tile', onclick: () => focus(n), title: botTable ? 'Click to see the coach\'s read on this hand' : '' }, h('div', { class: 'spec-name' }, n), inner);
+          const sc = Object.create(ctx); sc.__who = n; sc.stage = inner; sc.readonly = true; sc.table = null; sc.setCoach = node => { if (botTable && spec.watch === n) ctx.setCoach(node); }; sc.call = sc.primary = async () => null; sc.coachOn = () => botTable; sc.toast = () => {};
+          try { mod.init(sc); } catch (e) { console.error(e); }
+          t = { box, inner, sc }; spec.tiles.set(n, t);
+        }
+        t.box.classList.toggle('sel', n === spec.watch);
+        const pv = s.pviews && s.pviews[n];
+        t.box.classList.toggle('waiting', !pv);
+        if (pv) { try { mod.render(pv, t.sc); } catch (e) { console.error(e); } }
+      }
+      const want = names.map(n => spec.tiles.get(n).box);
+      if (spec.grid.children.length !== want.length || want.some((b, i) => spec.grid.children[i] !== b)) spec.grid.replaceChildren(...want);
+      spec.grid.style.setProperty('--z', names.length <= 1 ? 1 : names.length === 2 ? .8 : .62);
       return;
     }
     // simul tables: render the shared outcome

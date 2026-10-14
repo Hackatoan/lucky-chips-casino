@@ -1,8 +1,8 @@
 // Quick regression suite (≈1 min). Long statistical simulations live in test/*.sim.js and `npm run test:sims`.
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-const quick = ['smoke.test.js', 'tables.full.test.js', 'firebase.test.js', 'http.test.js', 'fee.test.js'];
-const sims = ['roulette.test.js', 'blackjack.test.js', 'threecard.sim.js', 'baccarat.sides.js', 'bots.test.js'];
+const quick = ['smoke.test.js', 'tables.full.test.js', 'rounds.test.js', 'firebase.test.js', 'http.test.js', 'fee.test.js'];
+const sims = ['roulette.test.js', 'blackjack.test.js', 'threecard.sim.js', 'baccarat.sides.js', 'rounds.stress.js', 'bots.test.js'];
 const list = process.argv.includes('--sims') ? sims : quick;
 let failed = 0;
 for (const f of list) {

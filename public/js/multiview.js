@@ -50,7 +50,7 @@ export async function multiPage(shell, onLeave) {
     const view = {};
     const sc = Object.create({});
     Object.assign(sc, { id: g.id, game: g, mod, stage, readonly: true, table: null, view, coachNode: null, tab: null, busy: false, user: state.user, toast() {}, sfx, setCoach() {}, showReview() {}, coachOn: () => false, sitting: false, call: async () => null, primary: async () => null, refresh: async () => {}, tableCall: async () => ({}), lastReviewJson: '' });
-    t.sc = sc; t.inited = false; t.simul = g.shared.mode === 'simul';
+    t.sc = sc; t.inited = false; t.simul = g.shared.mode !== 'parallel';
     tiles.set(code, t); grid.append(el);
     return t;
   }

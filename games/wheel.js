@@ -54,6 +54,7 @@ module.exports = {
     rules: ['Bet on the segment you think the wheel will stop on: $1 (pays 1:1), $2 (2:1), $5 (5:1), $10 (10:1), $20 (20:1), Joker or Flag (40:1).', 'The wheel has 54 slots: 24 × $1, 15 × $2, 7 × $5, 4 × $10, 2 × $20, 1 Joker, 1 Flag.'],
     tips: ['The $1 bet has the lowest house edge (11.1%). The 40:1 bets cost ~24%.'],
     bets: BETS,
+    wheel: WHEEL.map(x => x.label),     // lets spectator/multi-view tiles draw the wheel without a solo view
   },
   view: st => ({ wheel: WHEEL.map(s => s.label), bets: BETS, history: st ? st.history : [], last: st && st.last ? st.last : null, pending: st && st.pending ? { staked: st.pending.total } : null, maxBet: MAX }),
   actions: { spin(ctx, body) { const p = place(ctx, body); return settle(ctx, p, roll()); } },

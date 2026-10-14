@@ -60,7 +60,7 @@ const done = r => r.view.phase === 'done' || r.view.phase === 'idle';
   // every game must produce a view when idle, with sane JSON
   for (const id of ids) { const v = engine.peek(stmt.userById.get(u.id), id, games[id]).view; must(v && typeof v === 'object', id + ' idle view'); }
   // catalog sanity
-  for (const id of ids) { const g = games[id]; must(g.name && g.icon && g.blurb && g.meta && Array.isArray(g.meta.rules) && g.meta.rules.length, id + ' metadata'); must(g.shared && ['simul', 'parallel'].includes(g.shared.mode), id + ' has a shared-table mode'); if (g.shared.mode === 'simul') must(typeof g.shared.roll === 'function' && typeof g.shared.place === 'function' && typeof g.shared.settle === 'function', id + ' simul hooks'); }
+  for (const id of ids) { const g = games[id]; must(g.name && g.icon && g.blurb && g.meta && Array.isArray(g.meta.rules) && g.meta.rules.length, id + ' metadata'); must(g.shared && ['simul', 'parallel', 'rounds'].includes(g.shared.mode), id + ' has a shared-table mode'); if (g.shared.mode === 'simul') must(typeof g.shared.roll === 'function' && typeof g.shared.place === 'function' && typeof g.shared.settle === 'function', id + ' simul hooks'); }
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL GAMES PASSED SMOKE TEST');
   process.exit(failures ? 1 : 0);
 })();

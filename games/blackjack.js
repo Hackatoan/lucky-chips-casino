@@ -219,6 +219,8 @@ const playQuality = (played, best) => (played === best ? 1 : PARTIAL[best + play
 // ---------- state ----------
 function newState() { return { shoe: C.newShoe(DECKS), rc: 0, phase: 'idle', hands: [], dealer: [], holeHidden: false, decisions: [], results: [], sideRes: [], sides: {}, insBet: 0, stats: { hands: 0 }, notice: '' }; }
 function reveal(st, c) { st.rc += hilo(c); }
+// the hole card is counted exactly once, however many player states share this dealer
+function revealHole(st) { if (!st.holeCounted) { reveal(st, st.dealer[1]); st.holeCounted = true; } }
 function drawCard(st, hidden) {
   if (st.shoe.length === 0) { st.shoe = C.newShoe(DECKS); st.rc = 0; st.notice = 'The shoe ran out mid-hand and was reshuffled.'; }
   const c = st.shoe.pop();
@@ -299,8 +301,9 @@ function advanceHand(ctx, st) {
   dealerPlay(ctx, st);
 }
 function dealerPlay(ctx, st) {
+  if (st.shared) { st.phase = 'wait'; return; }        // shared-dealer table: the table plays the dealer once everyone is done
   st.phase = 'dealer';
-  if (st.holeHidden) { st.holeHidden = false; reveal(st, st.dealer[1]); }
+  if (st.holeHidden) { st.holeHidden = false; revealHole(st); }
   const live = st.hands.some(h => !h.surrendered && info(h.cards).total <= 21 && !(h.bj));
   if (live) { while (info(st.dealer).total < 17) st.dealer.push(drawCard(st)); }
   settle(ctx, st);
@@ -479,6 +482,34 @@ function view(st, { balance, coachOn = true }) {
   return v;
 }
 
+function paySideBets(ctx, st, sides, p1, p2, u, dBJ) {
+  const pay = (id, r) => {
+    const stake = sides[id]; if (!stake) return;
+    if (r) { ctx.credit(stake * (r.x + 1)); st.sideRes.push({ id, bet: stake, x: r.x, label: r.label }); }
+    else st.sideRes.push({ id, bet: stake, x: 0, label: 'no qualifying hand' });
+  };
+  pay('pp', sides.pp ? evalPP(p1, p2) : null);
+  pay('t3', sides.t3 ? eval21p3(p1, p2, u) : null);
+  pay('rm', sides.rm ? evalRM(p1, p2) : null);
+  pay('ll', sides.ll ? evalLL(p1, p2, dBJ) : null);
+}
+
+// grade + pay for the insurance decision (shared by solo play and shared-dealer tables)
+function insuranceDecide(ctx, st, take) {
+  const tc = trueCount(st);
+  const h = st.hands[0];
+  // declining is never a "mistake" for someone not counting: only taking it at a low count is wrong
+  const correct = take ? tc >= 3 : true;
+  st.decisions.push({
+    label: 'Insurance' + (h.bj ? ' (even money)' : ''), playedName: take ? 'Take' : 'Decline', bestName: tc >= 3 ? 'Take' : 'Decline', ok: correct,
+    devNote: !take && tc >= 3 ? `Count note: true count was +${tc.toFixed(1)} (≥ +3), where insurance is actually profitable — a counter would have taken it.` : undefined,
+    text: tc >= 3 ? `True count was +${tc.toFixed(1)} (≥ +3), when insurance becomes profitable.` : `True count was ${tc.toFixed(1)} (< +3): insurance is a −EV side bet of ~7.7% without a rich-in-tens deck.`,
+  });
+  if (!take) { if (tc < 3) ctx.rate('bj:ins-decline', 1300, 1); }
+  else ctx.rate('bj:ins-take', tc >= 3 ? 2000 : 1300, tc >= 3 ? 1 : 0);
+  if (take) { st.insBet = h.bet / 2; ctx.debit(st.insBet); }
+}
+
 // ---------- actions ----------
 const actions = {
   deal(ctx, body) {
@@ -496,6 +527,7 @@ const actions = {
     if (st.shoe.length < RESHUFFLE_AT) { st.shoe = C.newShoe(DECKS); st.rc = 0; st.notice = 'The cut card came out — fresh shoe shuffled, count reset to 0.'; }
     ctx.debit(bet + Object.values(sides).reduce((a, b) => a + b, 0));
 
+    st.shared = false; st.holeCounted = false;
     st.hands = []; st.dealer = []; st.decisions = []; st.results = []; st.sideRes = []; st.insBet = 0; st.cur = 0; st.sides = sides;
     const p1 = drawCard(st), u = drawCard(st), p2 = drawCard(st), hole = drawCard(st, true);
     st.dealer = [u, hole]; st.holeHidden = true;
@@ -505,20 +537,12 @@ const actions = {
 
     // immediate side bets
     const dBJ = info(st.dealer).bj;
-    const pay = (id, r) => {
-      const stake = sides[id]; if (!stake) return;
-      if (r) { ctx.credit(stake * (r.x + 1)); st.sideRes.push({ id, bet: stake, x: r.x, label: r.label }); }
-      else st.sideRes.push({ id, bet: stake, x: 0, label: 'no qualifying hand' });
-    };
-    pay('pp', sides.pp ? evalPP(p1, p2) : null);
-    pay('t3', sides.t3 ? eval21p3(p1, p2, u) : null);
-    pay('rm', sides.rm ? evalRM(p1, p2) : null);
-    pay('ll', sides.ll ? evalLL(p1, p2, dBJ) : null);
+    paySideBets(ctx, st, sides, p1, p2, u, dBJ);
 
     const upv = val(u);
     if (upv === 11) { st.phase = 'insurance'; return; }
-    if (upv === 10 && dBJ) { st.holeHidden = false; reveal(st, hole); st.phase = 'dealer'; return settle(ctx, st); }
-    if (bj) { st.holeHidden = false; reveal(st, hole); st.hands[0].done = true; return settle(ctx, st); }
+    if (upv === 10 && dBJ) { st.holeHidden = false; revealHole(st); st.phase = 'dealer'; return settle(ctx, st); }
+    if (bj) { st.holeHidden = false; revealHole(st); st.hands[0].done = true; return settle(ctx, st); }
     st.phase = 'player';
     advanceHand(ctx, st);
   },
@@ -527,28 +551,16 @@ const actions = {
     const st = ctx.state;
     if (!st || st.phase !== 'insurance') fail('No insurance offer right now.');
     const take = !!body.take;
-    const tc = trueCount(st);
+    insuranceDecide(ctx, st, take);
     const h = st.hands[0];
-    // declining is never a "mistake" for someone not counting: only taking it at a low count is wrong
-    const correct = take ? tc >= 3 : true;
-    st.decisions.push({
-      label: 'Insurance' + (h.bj ? ' (even money)' : ''), playedName: take ? 'Take' : 'Decline', bestName: tc >= 3 ? 'Take' : 'Decline', ok: correct,
-      devNote: !take && tc >= 3 ? `Count note: true count was +${tc.toFixed(1)} (≥ +3), where insurance is actually profitable — a counter would have taken it.` : undefined,
-      text: tc >= 3 ? `True count was +${tc.toFixed(1)} (≥ +3), when insurance becomes profitable.` : `True count was ${tc.toFixed(1)} (< +3): insurance is a −EV side bet of ~7.7% without a rich-in-tens deck.`,
-    });
-    // graded only on what a player can know: declining is judged against the 'no count' default; taking only
-    // makes sense with a count of +3 or more, so a take at a low count is a mistake and a correct take is a hard spot
-    if (!take) { if (tc < 3) ctx.rate('bj:ins-decline', 1300, 1); }
-    else ctx.rate('bj:ins-take', tc >= 3 ? 2000 : 1300, tc >= 3 ? 1 : 0);
-    if (take) { st.insBet = h.bet / 2; ctx.debit(st.insBet); }
     const dBJ = info(st.dealer).bj;
     if (dBJ) {
-      st.holeHidden = false; reveal(st, st.dealer[1]);
+      st.holeHidden = false; revealHole(st);
       if (st.insBet) ctx.credit(st.insBet * 3);
       return settle(ctx, st);
     }
     // no dealer blackjack: insurance (if any) is lost; play continues
-    if (h.bj) { st.holeHidden = false; reveal(st, st.dealer[1]); h.done = true; return settle(ctx, st); }
+    if (h.bj) { st.holeHidden = false; revealHole(st); h.done = true; return settle(ctx, st); }
     st.phase = 'player';
     advanceHand(ctx, st);
   },
@@ -633,8 +645,98 @@ const meta = {
 };
 
 const { parallel } = require('../lib/sharedkit');
+
+// ---------- shared-dealer tables ("rounds" mode): one shoe, one dealer hand, every seat plays against it ----------
+const sharedInit = () => ({ shoe: C.newShoe(DECKS), rc: 0, holeCounted: false, dealer: [], notice: '' });
+const injectMem = (st, mem) => { st.shoe = mem.shoe; st.rc = mem.rc; st.holeCounted = mem.holeCounted; st.shared = true; };
+const extractMem = (st, mem) => { mem.shoe = st.shoe; mem.rc = st.rc; mem.holeCounted = st.holeCounted; };
+function roundOut(st) {
+  const stage = { insurance: 'insurance', player: 'play', wait: 'wait', 'ins-wait': 'ins-wait' }[st.phase] || 'done';
+  const live = st.phase === 'wait' && st.hands.some(h => !h.surrendered && info(h.cards).total <= 21 && !h.bj);
+  return { stage, live };
+}
+function roundBet(body) {
+  const bet = Number(body && body.bet);
+  if (!Number.isInteger(bet) || bet < 2 || bet > MAX_BET || bet % 2) fail(`Bet must be an even number between 2 and ${MAX_BET}.`);
+  const sides = {}; let total = bet;
+  for (const k of Object.keys(SIDE)) {
+    const v = body.sides && body.sides[k]; if (!v) continue;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < SIDE[k].min || n > SIDE[k].max) fail(`${SIDE[k].name} must be between ${SIDE[k].min} and ${SIDE[k].max}.`);
+    sides[k] = n; total += n;
+  }
+  return { bet, sides, total };
+}
+function roundStart(mem) {
+  mem.notice = '';
+  if (mem.shoe.length < RESHUFFLE_AT) { mem.shoe = C.newShoe(DECKS); mem.rc = 0; mem.notice = 'The cut card came out — fresh shoe shuffled, count reset to 0.'; }
+  mem.holeCounted = false;
+  mem.dealer = [drawCard(mem), drawCard(mem, true)];
+}
+function roundDeal(ctx, b, mem) {
+  let st = ctx.state; if (!st) st = newState(); ctx.state = st;
+  injectMem(st, mem); st.notice = mem.notice;
+  ctx.debit(b.total);
+  st.hands = []; st.decisions = []; st.results = []; st.sideRes = []; st.insBet = 0; st.cur = 0; st.sides = b.sides;
+  const p1 = drawCard(st), p2 = drawCard(st);
+  st.dealer = mem.dealer.slice(); st.holeHidden = true;
+  st.hands = [{ cards: [p1, p2], bet: b.bet, done: false, fromSplit: false, bj: info([p1, p2]).bj }];
+  paySideBets(ctx, st, b.sides, p1, p2, st.dealer[0], info(st.dealer).bj);
+  st.phase = val(st.dealer[0]) === 11 ? 'insurance' : 'player';
+  if (st.phase === 'player') advanceHand(ctx, st);
+  extractMem(st, mem);
+  ctx.out = roundOut(st);
+}
+function roundAct(ctx, action, body, mem) {
+  const st = ctx.state; if (!st || !st.shared) fail('No hand in play.');
+  injectMem(st, mem);
+  if (action === 'insurance') {
+    if (st.phase !== 'insurance') fail('No insurance offer right now.');
+    insuranceDecide(ctx, st, !!(body && body.take)); st.phase = 'ins-wait';
+  } else if (['hit', 'stand', 'double', 'split', 'surrender', 'draw'].includes(action)) actions[action](ctx, body || {});
+  else fail('Unknown action.');
+  extractMem(st, mem);
+  ctx.out = roundOut(st);
+}
+// dealer has blackjack with a hidden hole card (10 up-card, or Ace after insurance)? settle everyone straight away
+const roundPeek = mem => info(mem.dealer).bj;
+function roundProceed(ctx, mem) {            // insurance round is over and the dealer has no blackjack: play on
+  const st = ctx.state; injectMem(st, mem);
+  if (st.phase === 'ins-wait') { st.phase = 'player'; advanceHand(ctx, st); }
+  extractMem(st, mem);
+  ctx.out = roundOut(st);
+}
+function roundPlayDealer(mem, anyLive) {
+  revealHole(mem);
+  if (anyLive) while (info(mem.dealer).total < 17) mem.dealer.push(drawCard(mem));
+}
+function roundFinish(ctx, mem) {
+  const st = ctx.state; injectMem(st, mem);
+  st.dealer = mem.dealer.slice(); st.holeHidden = false; st.holeCounted = true; st.phase = 'dealer';
+  if (info(st.dealer).bj && st.insBet) ctx.credit(st.insBet * 3);
+  settle(ctx, st);
+  extractMem(st, mem); st.shared = false;
+  ctx.out = roundOut(st);
+}
+function roundTableView(mem, showHole) {
+  const d = mem.dealer || [];
+  const di = showHole ? info(d) : { total: d.length ? val(d[0]) : 0, soft: false };
+  const tc = mem.rc / Math.max(mem.shoe.length / 52, 0.5);
+  return {
+    dealer: { cards: d.map((c, i) => (i === 1 && !showHole ? null : C.str(c))), total: di.total, soft: !!(showHole && di.soft) },
+    count: { left: mem.shoe.length, decks: DECKS, rc: mem.rc, tc: Math.round(tc * 10) / 10 }, notice: mem.notice || '',
+  };
+}
+function roundRecover(ctx) {            // server restarted mid-round: hand every unsettled stake back
+  const st = ctx.state;
+  if (!st || !st.shared || ['done', 'idle'].includes(st.phase)) return false;
+  const back = st.hands.reduce((a, h) => a + h.bet, 0) + (st.insBet || 0) + ((st.sides && st.sides.bb) || 0);
+  ctx.refund(back, 0); st.phase = 'idle'; st.shared = false; st.hands = []; st.dealer = [];
+  return true;
+}
+
 module.exports = {
-  shared: parallel(5),
+  shared: { mode: 'rounds', max: 5, secs: 15, insSecs: 10, actSecs: 25, primary: ['deal'], init: sharedInit, bet: roundBet, start: roundStart, deal: roundDeal, act: roundAct, peek: roundPeek, proceed: roundProceed, playDealer: roundPlayDealer, finish: roundFinish, tableView: roundTableView, recover: roundRecover },
   id: 'blackjack', name: 'Blackjack', icon: '🃏', category: 'cards', skill: 'high',
   blurb: 'Six-deck shoe with live Hi-Lo count, basic-strategy coach, surrender, split, insurance and 5 side bets.',
   edge: '0.5% with perfect play', meta, view, actions,
