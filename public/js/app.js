@@ -32,6 +32,7 @@ async function route() {
   for (const f of cleanup.splice(0)) { try { f(); } catch {} }
   const hash = location.hash.replace(/^#/, '') || '/';
   // read-only table views that need no account: /embed/CODE (iframe-friendly) and #/t/CODE/watch for signed-out visitors
+  if (/^\/stream\/?$/.test(location.pathname)) { try { const gp = await import('./gamepage.js'); return await gp.streamPage(embedShell, onLeave); } catch (e) { console.error(e); } }
   const em = location.pathname.match(/^\/embed\/([A-Za-z0-9]{6})\/?$/);
   if (em) { try { const gp = await import('./gamepage.js'); return await gp.guestTablePage(em[1].toUpperCase(), true, embedShell, onLeave); } catch (e) { console.error(e); } }
   if (!state.user) {

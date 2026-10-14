@@ -36,7 +36,23 @@ export async function guestTablePage(code, embed, shell, onLeave) {
   if (!state.user) state.user = { display: 'Guest', settings: {}, guest: true, balance: 0, fee: { mode: 'pct', value: 0 } };
   onLeave(() => { if (!had) state.user = undefined; document.body.classList.remove('embed'); });
   if (embed) document.body.classList.add('embed');
+  if (embed === 'stream') { document.body.classList.add('stream'); document.body.dataset.game = snap.game; onLeave(() => { document.body.classList.remove('stream'); delete document.body.dataset.game; }); }
   return mountGame(snap.game, shell, onLeave, { code, role: 'viewer', snap, guest: true, embed });
+}
+// /stream: the always-on broadcast scene. Shows whichever bot table is "on air" (rotates every few hours) with the coach panel, big.
+export async function streamPage(shell, onLeave) {
+  let now;
+  try { now = await realApi('/stream/now'); } catch (e) { shell(h('div', { class: 'panel center' }, 'Stream is starting…')); setTimeout(() => location.reload(), 5000); return; }
+  document.body.classList.add('stream');
+  onLeave(() => document.body.classList.remove('stream'));
+  const bar = h('div', { class: 'stream-bar' });
+  const left = ms => { const m = Math.max(0, Math.floor(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+  const draw = () => { const off = now.now - Date.now(); bar.replaceChildren(h('b', null, '🎰 Lucky Chips Casino'), h('span', null, `Now playing: ${now.icon} ${now.name}${now.live ? ' — 🔴 real players at the table' : ''}`), h('span', { class: 'muted' }, now.live ? 'Bots take over when the table empties' : `Next: ${now.next.icon} ${now.next.name} in ${left(now.endsAt - (Date.now() + off))}`), h('span', { class: 'grow' }), h('span', { class: 'url' }, 'casino.hackatoa.com — play money, free to play')); };
+  draw(); const tick = setInterval(draw, 30000); onLeave(() => clearInterval(tick));
+  const liveTag = () => (now.live ? ' · 🔴 LIVE players' : '');
+  const poll = setInterval(async () => { try { const n = await realApi('/stream/now'); if (n.code !== now.code) location.reload(); now = n; } catch {} }, 20000); onLeave(() => clearInterval(poll));
+  const stage = shell;
+  return guestTablePage(now.code, 'stream', content => stage(h('div', null, bar, content)), onLeave);
 }
 // the same calls a signed-in viewer makes, answered from the public read-only endpoints
 async function guestApi(path, body) {
@@ -98,7 +114,7 @@ async function mountGame(id, shell, onLeave, table) {
     id, game: g, stage, mod, view: first.view, table, busy: false, readonly: false, lastReviewJson: first.last ? JSON.stringify(first.last) : '',
     coachNode: null, tab: null,
     coachOn: () => settings().coach !== false,
-    setCoach(node) { ctx.coachNode = node; drawCoach(); },
+    setCoach(node) { if (ctx.keepCoach) return; ctx.coachNode = node; drawCoach(); },
     showReview(a, quiet) {
       reviewBox.replaceChildren(reviewNode(a));
       ctx.lastReviewJson = JSON.stringify(a);
@@ -203,9 +219,12 @@ async function mountGame(id, shell, onLeave, table) {
   const items = [['coach', '🎓 Coach', coachBox], ['review', '📋 Review', reviewBox]];
   if (table) items.unshift(['table', table.role === 'viewer' ? '👁 Gallery' : '👥 Table', tableBox]);
   items.push(['rules', '📖 Rules', rulesBox]);
-  const tabItems = table && (table.role === 'viewer' || (table.snap.bank && table.snap.hostName === myName())) ? items.filter(i => i[0] !== 'review' && (i[0] !== 'coach' || botTable)) : items;
+  const streamTips = !!(table && table.embed === 'stream' && !botTable);        // real players on air: no per-hand coaching (their cards are private), just the strategy corner
+  const tabItems = table && (table.role === 'viewer' || (table.snap.bank && table.snap.hostName === myName())) ? items.filter(i => i[0] !== 'review' && (i[0] !== 'coach' || botTable || streamTips)) : items;
   const tabset = tabs(tabItems, { active: table ? 'table' : 'coach', onChange: id2 => { if (id2 === 'review' && ctx.tab && ctx.tab.btns.review) { const d = ctx.tab.btns.review.querySelector('.dot'); if (d) d.remove(); } } });
   ctx.tab = tabset;
+  if (streamTips) { ctx.coachNode = tipsNode(g); ctx.keepCoach = true; drawCoach(); }
+  if (table && table.embed === 'stream' && tabset.panes.coach) tabset.select('coach');          // broadcast scene: the coach panel is always the one on screen
   shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, roundBar, stage, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
   if (first.last) ctx.showReview(first.last, true);
 
@@ -456,6 +475,13 @@ async function mountGame(id, shell, onLeave, table) {
     othersBox.replaceChildren(h('div', { class: 'others-title' }, '👥 Other players — live'), h('div', { class: 'others-grid' }, want.map(n => others.get(n).box)));
   }
 
+  // bot tables of luck-driven games: the coach panel is a strategy corner (what the bots follow and why)
+  function tipsNode(g2) {
+    const m = g2.meta || {};
+    return h('div', { class: 'coach-content' }, h('div', { class: 'coach-best' }, h('b', null, '💡 ' + g2.name + ' — strategy corner'), h('p', { class: 'small', style: { margin: '4px 0 0' } }, 'House edge: ' + g2.edge)),
+      ...(m.tips || []).map(t => h('div', { class: 'coach-opt' }, t)), (m.rules || [])[0] ? h('p', { class: 'muted small' }, (m.rules || [])[0]) : null,
+      h('p', { class: 'muted small' }, 'The bots at this table place the bets the coach recommends — watch how the results swing even with correct play.'));
+  }
   // ----- stage for viewers / banker host -----
   function renderSpectator(s) {
     if (s.mode === 'parallel') {
@@ -490,6 +516,7 @@ async function mountGame(id, shell, onLeave, table) {
       return;
     }
     // simul tables: render the shared outcome
+    if (botTable && !spec) spec = { tips: true }, ctx.setCoach(tipsNode(g));
     if (mod.spectate) { mod.spectate(ctx, s); return; }
     stage.replaceChildren(h('div', { class: 'spectator-banner' }, '👁 Table ' + table.code + ' — round ' + s.round),
       s.outcome ? h('div', { class: 'banner-result' }, s.outcome.text || 'Result: ' + s.outcome.n) : h('p', { class: 'center muted' }, 'Waiting for the first round…'),

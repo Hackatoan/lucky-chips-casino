@@ -128,6 +128,12 @@ function renderTable(ctx, snap, spectator) {
         h('div', { class: 'pk-eq' }, h('div', { class: 'pk-eq-bar' }, h('i', { style: { width: Math.round(a.eq * 100) + '%' } })), h('span', { class: 'small' }, `Equity ${Math.round(a.eq * 100)}%` + (a.call ? ` · needs ${Math.round(a.odds * 100)}%` : ''))),
         h('p', { class: 'muted small' }, `Pot ${fmt(a.pot)} · ${a.opp} opponent${a.opp > 1 ? 's' : ''} still in. Equity is simulated against random hands.`)));
     } else ctx.setCoach(h('div', { class: 'coach-content' }, h('p', null, you.hole && you.hole.length ? 'Waiting for your turn — the coach will show your equity, pot odds and a suggestion.' : 'Sit tight — you\'ll be dealt in next hand.'), h('p', { class: 'muted small' }, 'Keys: F = fold · C = check/call.')));
+  } else if (pk.focus && pk.focus.advice) {                       // bot table: the coach explains the move of whichever bot is acting
+    const a = pk.focus.advice, lg = pk.focus.legal || {};
+    ctx.setCoach(h('div', { class: 'coach-content' },
+      h('div', { class: 'coach-best' }, h('div', { class: 'small muted' }, `${pk.focus.name} to act · hand: ${a.hand}${a.shape && a.shape.length ? ' · ' + a.shape.join(', ') : ''}`), h('b', null, '★ Coach says: ' + ({ fold: 'Fold', call: 'Call', check: 'Check', raise: lg.toCall ? 'Raise' : 'Bet' })[a.rec]), h('p', { class: 'small', style: { margin: '4px 0 0' } }, a.why)),
+      h('div', { class: 'pk-eq' }, h('div', { class: 'pk-eq-bar' }, h('i', { style: { width: Math.round(a.eq * 100) + '%' } })), h('span', { class: 'small' }, `Equity ${Math.round(a.eq * 100)}%` + (a.call ? ` · needs ${Math.round(a.odds * 100)}%` : ''))),
+      h('p', { class: 'muted small' }, `Pot ${fmt(a.pot)} · ${a.opp} opponent${a.opp > 1 ? 's' : ''} still in. On bot tables you can see every hand.`)));
   } else ctx.setCoach(h('p', { class: 'muted' }, 'Watching the table — hole cards are private.'));
 
   // ---- status line (with a live countdown) ----

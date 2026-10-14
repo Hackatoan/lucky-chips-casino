@@ -173,6 +173,7 @@ function catalog() {
   }));
 }
 
+let streamPick = null;       // the real-player table currently featured on the stream
 // ---------- API ----------
 async function api(req, res, url) {
   const p = url.pathname;
@@ -229,6 +230,23 @@ async function api(req, res, url) {
     return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' });
   }
 
+  // 24/7 stream scene: which bot table is "on air" right now (rotates every STREAM_HOURS through STREAM_GAMES)
+  if (m === 'GET' && p === '/api/stream/now') {
+    const list = (process.env.STREAM_GAMES || 'blackjack,roulette,baccarat,holdem,craps,threecard,letitride,war,sicbo,wheel').split(',').map(x => x.trim()).filter(x => games[x] && games[x].shared);
+    const period = Math.max(0.05, Number(process.env.STREAM_HOURS || 3)) * 3600e3, nowMs = Date.now(), slot = Math.floor(nowMs / period);
+    const game = list[slot % list.length], nextGame = list[(slot + 1) % list.length];
+    // a public table with real players beats the bots: feature the busiest one and keep it on air while people are still there
+    const humans = t => [...t.players.values()].filter(p => !p.bot && !p.banker && p.online > 0);
+    const live = t => t.public && !t.bot && humans(t).length >= (t.sh.mode === 'poker' ? 2 : 1) && !(t.sh.mode === 'poker' && t.phase === 'waiting');
+    let pick = streamPick && tables.tables.get(streamPick.code) && live(tables.tables.get(streamPick.code)) ? tables.tables.get(streamPick.code) : null;
+    if (!pick) {
+      const cands = [...tables.tables.values()].filter(live).sort((a, b) => humans(b).length - humans(a).length || b.round - a.round);
+      pick = cands[0] || null; streamPick = pick ? { code: pick.code, since: nowMs } : null;
+    }
+    if (pick) return json(res, 200, { game: pick.game, name: games[pick.game].name, icon: games[pick.game].icon, code: pick.code, live: true, players: humans(pick).length, endsAt: nowMs + 60000, now: nowMs, next: { game: nextGame, name: games[nextGame].name, icon: games[nextGame].icon }, hours: period / 3600e3 });
+    const t = require('./lib/bots').ensure(game);
+    return json(res, 200, { game, name: games[game].name, icon: games[game].icon, code: t.code, live: false, endsAt: (slot + 1) * period, now: nowMs, next: { game: nextGame, name: games[nextGame].name, icon: games[nextGame].icon }, hours: period / 3600e3 });
+  }
   // public, read-only spectating (no account): watch links and the /embed view
   const pm = p.match(/^\/api\/pub\/table\/([A-Za-z0-9]{6})(?:\/(stream))?$/);
   if (pm && m === 'GET') {
