@@ -229,6 +229,16 @@ async function api(req, res, url) {
     return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' });
   }
 
+  // public, read-only spectating (no account): watch links and the /embed view
+  const pm = p.match(/^\/api\/pub\/table\/([A-Za-z0-9]{6})(?:\/(stream))?$/);
+  if (pm && m === 'GET') {
+    const ip = clientIp(req);
+    if (!throttle('pub:' + ip, 90, 60e3)) return json(res, 429, { error: 'Easy there — too many requests.' });
+    const t = tables.get(pm[1]);
+    if (!t) return json(res, 404, { error: 'That table no longer exists.' });
+    if (pm[2]) return tables.guestStream(t, req, res, ip);
+    return json(res, 200, { table: tables.snapshot(t, 'viewer') });
+  }
   const user = authUser(req);
   if (m === 'GET' && p === '/api/me') return user ? json(res, 200, { user: publicUser(user) }) : json(res, 200, { user: null });
   if (!user) return json(res, 401, { error: 'Please sign in.' });
@@ -488,7 +498,9 @@ const handler = async (req, res) => {
   // Cloudflare injects a tiny inline bootstrap script into HTML (bot detection). A per-response nonce in the CSP lets it add the
   // matching nonce attribute itself, so the policy stays strict (no 'unsafe-inline') and nothing has to be switched off at Cloudflare.
   const nonce = crypto.randomBytes(16).toString('base64');
-  res.setHeader('Content-Security-Policy', SEC_HEADERS['Content-Security-Policy'].replace("script-src 'self'", `script-src 'self' 'nonce-${nonce}'`));
+  let csp = SEC_HEADERS['Content-Security-Policy'].replace("script-src 'self'", `script-src 'self' 'nonce-${nonce}'`);
+  if (/^\/embed\//.test(req.url || '')) { res.removeHeader('X-Frame-Options'); csp = csp.replace("frame-ancestors 'none'", 'frame-ancestors *'); }     // only the read-only table view may be iframed
+  res.setHeader('Content-Security-Policy', csp);
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); return res.end(); }
   try {

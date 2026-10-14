@@ -16,6 +16,12 @@ export default {
   render(v, ctx) {
     const s = ctx._dr; s.v = v;
     if (v.last && !s.seen) { s.seen = true; s.out.textContent = v.last.roll.toFixed(2); }
+    if (ctx.readonly && v.last) {                                       // watching someone: show THEIR target and replay each roll
+      s.dir = v.last.dir; s.target = v.last.target; s.slider.value = s.target;
+      const key = v.last.roll + ':' + v.last.target + ':' + v.last.dir;
+      if (s.specKey === undefined) s.specKey = key;
+      else if (key !== s.specKey) { s.specKey = key; s.specQ = v.last; if (!s.playing) { s.playing = true; (async () => { while (s.specQ) { const l = s.specQ; s.specQ = null; if (animOn()) for (let i = 0; i < 12; i++) { s.out.textContent = (Math.random() * 100).toFixed(2); await sleep(45); } s.out.textContent = l.roll.toFixed(2); s.out.className = 'dice-roll-out ' + (l.win ? 'win' : 'lose'); } s.playing = false; })(); } }
+    }
     clear(s.hist); (v.history || []).slice(-20).forEach(x => s.hist.append(h('span', { class: x.win ? 'green' : 'red' }, x.roll.toFixed(1))));
     upd(ctx);
     clear(s.controls); if (!ctx.readonly) s.controls.append(s.bet.el, h('div', { class: 'actions', style: { width: '100%' } }, btn('Roll', 'gold big', () => roll(ctx))));

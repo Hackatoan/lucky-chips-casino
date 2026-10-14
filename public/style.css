@@ -620,3 +620,12 @@ table.chart { border-collapse: separate; border-spacing: 2px; font-size: .85rem;
 .cr-stk .stk { white-space: nowrap; background: var(--gold); color: #2b1d00; border-radius: 99px; padding: 1px 7px; font-size: .64rem; font-weight: 800; }
 .cr-stk .stk.staged { background: transparent; color: var(--gold); border: 1px dashed var(--gold); }
 .cr-num { align-items: center; }
+
+/* embeddable read-only table view (/embed/CODE) and fullscreen */
+body.embed .top, body.embed .foot, body.embed .tabbar, body.embed #ck-notice, body.embed .game-head > a.btn:first-child, body.embed .side { display: none !important; }
+body.embed .wrap, body.embed .embed-wrap { max-width: none; padding: 6px; margin: 0; }
+body.embed .game { grid-template-columns: 1fr; margin-top: 4px; }
+body.embed .game-head { margin-top: 2px; }
+body.embed .game-head h1 { font-size: 1rem; }
+.game:fullscreen { background: var(--bg, #06241c); padding: 10px; overflow: auto; align-content: start; grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 1020px) { .game:fullscreen { grid-template-columns: 1fr; } }

@@ -1,6 +1,6 @@
 // Game page: layout, coach/review/rules tabs, solo vs shared-table plumbing, table panel (players, host tools, bank, queue,
 // provably-fair check, chat with global on/off), spectator mode for viewers + bot arena, and the invite preview.
-import { api, state, setBalance, setUser, shownBalance } from './api.js';
+import { api as realApi, api, state, setBalance, setUser, shownBalance } from './api.js';
 import { h, clear, fmt, sgn, toast, modal, badge, tabs, store, btn } from './ui.js';
 import { sfx } from './sfx.js';
 import { roundFx, animOn } from './fx.js';
@@ -26,6 +26,34 @@ export async function tablePage(code, mode, shell, onLeave) {
   return mountGame(snap.game, shell, onLeave, { code, role: snap.role, snap });
 }
 
+// Anonymous / embedded read-only view of a table. No account: guests can watch (never see private cards) but can't play or chat.
+export async function guestTablePage(code, embed, shell, onLeave) {
+  let snap;
+  try { snap = (await realApi('/pub/table/' + code)).table; }
+  catch (e) { shell(h('div', { class: 'panel center', style: { margin: '40px auto', maxWidth: '480px' } }, h('h2', null, 'Table not found'), h('p', { class: 'muted' }, e.message || 'That table is no longer running.'), h('a', { class: 'btn gold', href: '/' }, 'Open the casino'))); return; }
+  snap.role = 'viewer';
+  const had = state.user;
+  if (!state.user) state.user = { display: 'Guest', settings: {}, guest: true, balance: 0, fee: { mode: 'pct', value: 0 } };
+  onLeave(() => { if (!had) state.user = undefined; document.body.classList.remove('embed'); });
+  if (embed) document.body.classList.add('embed');
+  return mountGame(snap.game, shell, onLeave, { code, role: 'viewer', snap, guest: true, embed });
+}
+// the same calls a signed-in viewer makes, answered from the public read-only endpoints
+async function guestApi(path, body) {
+  if (!body && path.startsWith('/game/')) return { view: {}, last: null, balance: 0 };
+  const m = path.match(/^\/table\/([A-Z0-9]{6})$/); if (!body && m) return realApi('/pub' + path);
+  throw new Error('Sign in to do that — guests can watch but not play or chat.');
+}
+function shareTable(code, g) {
+  const origin = location.origin, watch = `${origin}/#/t/${code}/watch`, embedSrc = `${origin}/embed/${code}`;
+  const iframe = `<iframe src="${embedSrc}" width="100%" height="640" style="border:0;border-radius:12px" allow="fullscreen" allowfullscreen title="${g.name} at Lucky Chips Casino"></iframe>`;
+  const row = (label, val) => h('div', { style: { margin: '10px 0' } }, h('div', { class: 'small muted' }, label), h('div', { class: 'row' }, h('input', { type: 'text', readonly: true, value: val, style: { flex: 1, minWidth: '200px' }, onclick: e => e.target.select() }), btn('Copy', 'xs gold', async () => { try { await navigator.clipboard.writeText(val); toast('Copied!', 'good'); } catch { toast('Select the text and copy it.', 'info'); } })));
+  modal('Share or embed this table', h('div', null,
+    h('p', { class: 'muted small' }, 'Anyone with the link can watch without signing in. They can\'t see private cards, play or chat. Signing in is only needed to chat or take a seat.'),
+    row('Watch link', watch), row('Full-screen embed page', embedSrc), row('Embed code (iframe)', iframe)));
+}
+function goFullscreen(el) { const f = el.requestFullscreen || el.webkitRequestFullscreen; if (f) f.call(el).catch(() => {}); else toast('Fullscreen isn\'t available in this browser.', 'info'); }
+
 function invitePage(snap, shell) {
   const g = state.byId[snap.game];
   const seats = snap.players.filter(p => !p.banker).length;
@@ -49,6 +77,7 @@ function invitePage(snap, shell) {
 
 // ------------------------------------------------------------------ the game page itself
 async function mountGame(id, shell, onLeave, table) {
+  const api = table && table.guest ? guestApi : realApi;          // guests are answered from the public read-only endpoints
   const g = state.byId[id];
   const mod = (await import(`./games/${id}.js`)).default;
   const first = await api('/game/' + id);
@@ -165,7 +194,8 @@ async function mountGame(id, shell, onLeave, table) {
     h('h1', null, g.icon + ' ' + g.name), badge('Edge ' + g.edge), badge(SKILL[g.skill] || '', g.skill === 'high' ? 'green' : g.skill === 'medium' ? 'gold' : ''), botTable ? badge('🤖 Bot table', 'gold') : null, feeChip,
     h('span', { class: 'grow' }),
     g.shared && !table ? [h('button', { class: 'btn', onclick: () => quickPlay(id) }, '👥 Public table'), h('button', { class: 'btn', title: 'Spectate a public table (works even when every seat is taken)', onclick: async () => { try { const r = await api('/lobby'); const gg = r.games.find(x => x.id === id); const t = gg && gg.tables.slice().sort((a, b) => (b.players + (b.viewers || 0)) - (a.players + (a.viewers || 0)))[0]; if (!t) return toast('No public tables are open yet — click Public table to start one.', 'info'); go('#/t/' + t.code + '/watch'); } catch (e) { toast(e.message, 'bad'); } } }, '👁 Watch'), h('button', { class: 'btn', onclick: () => privateTable(id) }, '🔗 Play with friends')] : null,
-    table ? h('button', { class: 'btn red', onclick: leaveTable }, table.role === 'viewer' ? 'Stop watching' : 'Leave table') : null);
+    table ? [h('button', { class: 'btn', title: 'Fullscreen', onclick: () => goFullscreen(document.querySelector('.game') || stage) }, '⛶ Fullscreen'), h('button', { class: 'btn', title: 'Share a watch link or embed this table', onclick: () => shareTable(table.code, g) }, '🔗 Share / embed')] : null,
+    table ? (table.guest ? h('a', { class: 'btn gold', href: '/#/', target: table.embed ? '_blank' : '_self', rel: 'noopener' }, 'Sign in to play or chat') : h('button', { class: 'btn red', onclick: leaveTable }, table.role === 'viewer' ? 'Stop watching' : 'Leave table')) : null);
 
   const isBankerHost = () => !!(table && table.snap && table.snap.bank && table.snap.hostName === myName());
   const spectating = () => !!table && (table.role === 'viewer' || isBankerHost());
@@ -202,7 +232,7 @@ async function mountGame(id, shell, onLeave, table) {
   async function leaveTable() { try { await ctx.tableCall('leave'); } catch {} sfx.play('click'); go(botTable ? '#/arena' : '#/g/' + id); }
 
   function connect() {
-    es = new EventSource(`/api/table/${table.code}/stream`);
+    es = new EventSource(table.guest ? `/api/pub/table/${table.code}/stream` : `/api/table/${table.code}/stream`);
     es.addEventListener('state', e => onState(JSON.parse(e.data)));
     es.addEventListener('chat', e => addChat(JSON.parse(e.data)));
     es.addEventListener('result', e => onResult(JSON.parse(e.data)));
@@ -236,7 +266,7 @@ async function mountGame(id, shell, onLeave, table) {
       if (!chatOn()) { tp.chatBox.replaceChildren(h('p', { class: 'muted small' }, '💬 Chat is hidden. ', h('button', { class: 'btn xs', onclick: () => toggleChat(true) }, 'Show chat'))); return; }
       tp.chatBox.replaceChildren(
         h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('h4', { style: { margin: '12px 0 4px' } }, isViewer ? '💬 Gallery chat — viewers only' : '💬 Table chat'), h('button', { class: 'btn xs ghost', title: 'Hide chat everywhere', onclick: () => toggleChat(false) }, 'Hide')),
-        h('div', { class: 'chat' + (isViewer ? ' viewer-chat' : '') }, tp.chatLog, h('form', { class: 'chat-form', onsubmit: send }, tp.input, h('button', { class: 'btn sm gold', type: 'submit' }, 'Send'))),
+        h('div', { class: 'chat' + (isViewer ? ' viewer-chat' : '') }, tp.chatLog, table.guest ? h('p', { class: 'muted small', style: { margin: '6px 0' } }, 'Watching as a guest — ', h('a', { href: '/#/', target: '_blank', rel: 'noopener' }, 'sign in'), ' to chat.') : h('form', { class: 'chat-form', onsubmit: send }, tp.input, h('button', { class: 'btn sm gold', type: 'submit' }, 'Send'))),
         snap && snap.public ? h('p', { class: 'muted small' }, 'Public chat is filtered. Click a name to mute that player for you.') : null);
       tp.chatLog.scrollTop = tp.chatLog.scrollHeight;
     };
@@ -322,6 +352,8 @@ async function mountGame(id, shell, onLeave, table) {
       tp.btns.replaceChildren(...btns);
       if (me && me.out && !stage.querySelector('.sitout-banner')) stage.prepend(h('div', { class: 'sitout-banner' }, '🪑 You\'re sitting out. Your seat is held for one full round — sit back in any time before then.'));
       if (!(me && me.out)) { const b = stage.querySelector('.sitout-banner'); if (b) b.remove(); }
+    } else if (table.role === 'viewer' && table.guest) {
+      tp.queueBtn.replaceChildren(h('div', { class: 'spectator-banner' }, s.bot ? '🤖 Bot table — watch-only' : 'Watching as a guest. ', s.bot ? null : h('a', { href: '/#/', target: '_blank', rel: 'noopener' }, 'Sign in to join or chat')));
     } else if (table.role === 'viewer') {
       const open = s.players.filter(p => !p.banker).length < s.capacity || s.players.some(p => p.out && !p.locked);
       tp.queueBtn.replaceChildren(h('div', { class: 'spectator-banner' }, s.bot ? '🤖 Bot table — watch-only' : open ? [h('span', null, 'There\'s a free seat. '), btn('🪑 Take a seat', 'green sm', takeSeat)] : [h('span', null, 'Table is full. '), tp.queued ? btn('Leave queue', 'sm', unqueue) : btn('⏳ Join queue', 'gold sm', enqueue)]));

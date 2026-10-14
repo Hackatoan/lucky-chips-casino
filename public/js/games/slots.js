@@ -25,6 +25,12 @@ export default {
     s.reels.className = `sl-reels theme-${cfg.theme} mode-${cfg.mode}`; s.reels.style.setProperty('--cols', cfg.reels); s.reels.style.setProperty('--rows', cfg.rows);
     if (v.jackpot !== null) { s.jp.hidden = false; s.jp.replaceChildren(h('span', null, '💰 PROGRESSIVE JACKPOT'), h('b', null, fmt(v.jackpot)), v.jackpotLast ? h('small', { class: 'muted' }, ` last win ${fmt(v.jackpotLast.amount)}`) : null); }
     if (!s.grid) { const last = v.last && v.last.rounds.length ? lastGrid(v.last) : null; s.grid = last || idleGrid(cfg, s); drawGrid(s, s.grid); }
+    // watching someone else (bot arena, gallery, multi-view tile): replay each new spin with the full reel animation
+    if (ctx.readonly && v.last && v.last.rounds && v.last.rounds.length) {
+      const key = JSON.stringify(v.last.rounds) + ':' + v.last.win;
+      if (s.specKey === undefined) s.specKey = key;                      // first sight: just show the grid
+      else if (key !== s.specKey) { s.specKey = key; s.specQueue = v.last; if (!s.playing) { s.playing = true; (async () => { while (s.specQueue) { const l = s.specQueue; s.specQueue = null; s.win.textContent = ''; s.lines.textContent = ''; try { await play(ctx, l); } catch (e) { console.error(e); } } s.playing = false; })(); } }
+    }
     clear(s.controls);
     if (!ctx.readonly) {
       const total = s.bet.get() * cfg.units;

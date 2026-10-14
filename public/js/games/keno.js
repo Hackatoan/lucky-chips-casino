@@ -12,6 +12,11 @@ export default {
   render(v, ctx) {
     const s = ctx._kn; s.v = v;
     if (v.last && !s.seen) { s.seen = true; s.drawn = new Set(v.last.drawn); }
+    if (ctx.readonly && v.last) {                                       // watching someone: their picks, and the draw is replayed number by number
+      const key = v.last.picks.join(',') + '|' + v.last.drawn.join(',');
+      if (s.specKey === undefined) { s.specKey = key; s.picks = new Set(v.last.picks); s.drawn = new Set(v.last.drawn); }
+      else if (key !== s.specKey) { s.specKey = key; s.specQ = v.last; if (!s.playing) { s.playing = true; (async () => { while (s.specQ) { const l = s.specQ; s.specQ = null; s.picks = new Set(l.picks); s.drawn = new Set(); drawGrid(ctx); for (const n of l.drawn) { s.drawn.add(n); drawGrid(ctx); sfx.play(s.picks.has(n) ? 'gem' : 'tick'); if (animOn()) await sleep(110); } } s.playing = false; })(); } }
+    }
     drawGrid(ctx); drawPay(ctx);
     clear(s.controls); if (!ctx.readonly) s.controls.append(s.bet.el, h('div', { class: 'actions', style: { width: '100%' } },
       btn('Quick pick 8', '', () => { s.picks = new Set(); while (s.picks.size < 8) s.picks.add(1 + Math.floor(Math.random() * 80)); persist(s); drawGrid(ctx); drawPay(ctx); sfx.play('click'); }),

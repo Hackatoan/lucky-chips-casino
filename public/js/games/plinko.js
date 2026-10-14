@@ -12,7 +12,14 @@ export default {
   },
   render(v, ctx) {
     const s = ctx._pl; s.v = v;
-    drawBoard(s); drawMults(s, v);
+    if (ctx.readonly && v.last && v.last.rows) { s.rows = v.last.rows; s.risk = v.last.risk; }       // show the board the bot actually dropped on
+    if (!(ctx.readonly && s.playing)) drawBoard(s);
+    drawMults(s, v);
+    if (ctx.readonly && v.last && v.last.drops && v.last.drops.length) {          // spectators: watch the balls fall
+      const key = JSON.stringify(v.last.drops.map(d => d.path));
+      if (s.specKey === undefined) s.specKey = key;
+      else if (key !== s.specKey) { s.specKey = key; if (!s.playing) { s.playing = true; animateDrops(s, v.last.drops).finally(() => { s.playing = false; }); } }
+    }
     clear(s.sel);
     const mk = (label, vals, key) => h('div', { class: 'row' }, h('span', { class: 'muted small' }, label), ...vals.map(x => h('button', { class: 'pill' + (s[key] === x ? ' on' : ''), onclick: () => { s[key] = x; sfx.play('click'); ctx.mod.render(s.v, ctx); } }, String(x))));
     s.sel.append(mk('Rows', [8, 12, 16], 'rows'), mk('Risk', ['low', 'medium', 'high'], 'risk'), mk('Balls', [1, 3, 5], 'balls'));
@@ -35,6 +42,9 @@ async function ball(s, path) {
   let k = 0; const xy = r => [g.W / 2 + (k - (r + 1) / 2 + 0.5 - 0.5) * g.gx, g.top + r * g.gy];
   for (let r = 0; r < path.length; r++) { k += path[r]; const x = g.W / 2 + (k - (r + 1) / 2) * g.gx + 0, y = g.top + (r + 1) * g.gy - g.gy * 0.4; c.style.transition = 'cx .11s linear, cy .11s linear'; c.setAttribute('cx', x); c.setAttribute('cy', y); if (animOn()) await sleep(115); sfx.play('tick'); }
   c.setAttribute('cy', g.top + g.rows * g.gy + 6); await sleep(animOn() ? 120 : 0); c.remove();
+}
+async function animateDrops(s, drops) {
+  await Promise.all(drops.map(async (d, i) => { await sleep(i * 220); await ball(s, d.path); const bin = s.mults.querySelector(`[data-k="${d.bin}"]`); if (bin) { bin.classList.add('flash'); setTimeout(() => bin.classList.remove('flash'), 700); } }));
 }
 async function drop(ctx) {
   const s = ctx._pl;

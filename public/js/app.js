@@ -31,7 +31,14 @@ export function go(hash) { if (location.hash === hash) route(); else location.ha
 async function route() {
   for (const f of cleanup.splice(0)) { try { f(); } catch {} }
   const hash = location.hash.replace(/^#/, '') || '/';
-  if (!state.user) return authPage(hash);
+  // read-only table views that need no account: /embed/CODE (iframe-friendly) and #/t/CODE/watch for signed-out visitors
+  const em = location.pathname.match(/^\/embed\/([A-Za-z0-9]{6})\/?$/);
+  if (em) { try { const gp = await import('./gamepage.js'); return await gp.guestTablePage(em[1].toUpperCase(), true, embedShell, onLeave); } catch (e) { console.error(e); } }
+  if (!state.user) {
+    const gm = hash.match(/^\/t\/([A-Za-z0-9]{6})\/watch\/?$/);
+    if (gm) { try { const gp = await import('./gamepage.js'); return await gp.guestTablePage(gm[1].toUpperCase(), false, guestShell, onLeave); } catch (e) { console.error(e); } }
+    return authPage(hash);
+  }
   const parts = hash.split('/').filter(Boolean);
   window.scrollTo(0, 0);
   try {
@@ -65,6 +72,16 @@ function updateBalanceChip() {
   }
   const claim = balChip.querySelector('.claim');
   if (claim) claim.hidden = !u.canClaim;
+}
+
+// chrome-free page for iframes
+function embedShell(content) { root.replaceChildren(h('main', { class: 'wrap embed-wrap' }, content)); }
+// signed-out spectators: a slim bar with a sign-in button instead of the full navigation
+function guestShell(content) {
+  root.replaceChildren(
+    h('header', { class: 'top' }, h('div', { class: 'top-in' }, h('a', { class: 'logo', href: '/#/' }, '🎰 Lucky ', h('span', null, 'Chips')), h('span', { class: 'grow' }), h('a', { class: 'btn gold sm', href: '/#/' }, 'Sign in / create account'))),
+    h('main', { class: 'wrap' }, content),
+    h('footer', { class: 'foot' }, h('div', { class: 'foot-in' }, h('div', { class: 'muted small' }, 'Play money only — chips have no cash value. ', h('a', { href: '/terms' }, 'Terms'), ' · ', h('a', { href: '/privacy' }, 'Privacy')))));
 }
 
 export function shell(content, active) {
