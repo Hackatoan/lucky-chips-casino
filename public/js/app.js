@@ -14,7 +14,7 @@ const SKILL = { high: ['Skill game', 'green'], medium: ['Some skill', 'gold'], n
 
 // ---------- boot ----------
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.update().catch(() => {}))).catch(() => {});   // old workers pick up the self-unregistering sw.js
   try { await loadCatalog(); } catch (e) { root.replaceChildren(h('div', { class: 'boot' }, 'Could not reach the casino. ', h('button', { class: 'btn', onclick: () => location.reload() }, 'Retry'))); return; }
   try { const r = await api('/me'); state.user = r.user; } catch {}
   on('logout', () => { toast('You were signed out.', 'bad'); route(); });
