@@ -17,7 +17,7 @@ const BETS = {
   dontpass: { name: "Don't Pass", pays: '1:1 (12 pushes)', edge: 0.0136, group: 'line', min: 1, step: 1, desc: 'The opposite of the Pass Line. Wins on 2/3 at the come-out, loses on 7/11, pushes 12; after a point, wins if a 7 comes first.' },
   come: { name: 'Come', pays: '1:1', edge: 0.0141, group: 'line', min: 1, step: 1, desc: 'A Pass Line bet you place after a point is set — its own come-out is the next roll. (Point must be on.)' },
   dontcome: { name: "Don't Come", pays: '1:1 (12 pushes)', edge: 0.0136, group: 'line', min: 1, step: 1, desc: "A Don't Pass bet you place after the point is set. (Point must be on.)" },
-  place: { name: 'Place', pays: '9:5 on 4/10 · 7:5 on 5/9 · 7:6 on 6/8', edge: 0.0152, group: 'num', min: 5, step: 5, desc: 'Bet that a number rolls before a 7. Stays up after winning. Off on the come-out roll. Best at 6 and 8 (1.52%).' },
+  place: { name: 'Place', pays: '9:5 on 4/10 · 7:5 on 5/9 · 7:6 on 6/8', edge: 0.0152, group: 'num', min: 5, step: 5, desc: 'Bet that a number rolls before a 7. Bet 6/8 in multiples of $6 for an exact 7:6 payout — other amounts (e.g. $5) are paid rounded down, which costs you a little extra edge. Stays up after winning. Off on the come-out roll. Best at 6 and 8 (1.52%).' },
   buy: { name: 'Buy', pays: 'True odds minus 5% commission on win', edge: 0.0476, group: 'num', min: 20, step: 20, desc: 'Like Place but at true odds with a 5% commission on winnings. Only better than Place on 4 and 10.' },
   lay: { name: 'Lay', pays: 'True odds against, minus 5% commission', edge: 0.0244, group: 'num', min: 6, step: 6, desc: 'Bet a 7 comes before a number. Edge 2.44% on 4/10, 3.23% on 5/9, 4% on 6/8.' },
   hard: { name: 'Hardway', pays: '7:1 on 4/10 · 9:1 on 6/8', edge: 0.1111, group: 'num', min: 1, step: 1, desc: 'The number must roll as a pair (e.g. 3-3) before it rolls "easy" or a 7. Off on the come-out. Edge 9–11%.' },
@@ -165,7 +165,6 @@ function normalizeBets(ctx, st, raw) {
     if (d.group === 'num') {
       const okNums = r.type === 'hard' ? [4, 6, 8, 10] : r.type === 'big' ? [6, 8] : NUMS;
       if (!okNums.includes(num)) fail(`${d.name}: pick ${r.type === 'hard' ? '4, 6, 8 or 10' : r.type === 'big' ? '6 or 8' : 'a point number'}.`);
-      if (r.type === 'place' && (num === 6 || num === 8) && amount % 6 !== 0) fail('Place bets on 6 and 8 should be multiples of 6 so the 7:6 payout is exact.');
       if (r.type === 'place' && (num === 5 || num === 9) && amount % 5 !== 0) fail('Place bets on 5 and 9 should be multiples of 5 (pays 7:5).');
       if (r.type === 'place' && (num === 4 || num === 10) && amount % 5 !== 0) fail('Place bets on 4 and 10 should be multiples of 5 (pays 9:5).');
       if (r.type === 'lay') { const unit = LAY_PAY[num][1]; if (amount % unit) fail(`Lay on the ${num} must be a multiple of ${unit}.`); }

@@ -59,7 +59,7 @@ function addStage(ctx, b) {
   const s = ctx._cr, def = s.defs[b.type];
   let amount = s.chip;
   const step = def.step || 1;
-  if (b.type === 'place' && b.num) amount = Math.max(b.num === 6 || b.num === 8 ? 6 : 5, Math.round(amount / (b.num === 6 || b.num === 8 ? 6 : 5)) * (b.num === 6 || b.num === 8 ? 6 : 5));
+  if (b.type === 'place' && b.num) amount = Math.max(5, Math.round(amount / 5) * 5);   // 6/8 pay 7:6 rounded down on non-multiples of 6, like a real table
   else if (b.type === 'lay') { const u = UNIT[b.num][0] === 6 ? 6 : UNIT[b.num][1] === 1 ? 2 : 3; amount = Math.max(u, Math.round(amount / u) * u); }
   else if (step > 1) amount = Math.max(step, Math.round(amount / step) * step);
   const key = b.type + ':' + (b.num || 0);
