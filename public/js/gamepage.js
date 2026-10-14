@@ -162,7 +162,7 @@ async function mountGame(id, shell, onLeave, table) {
     h('a', { class: 'btn sm ghost', href: table ? '#/lobby' : '#/' }, '← ' + (table ? 'Lobby' : 'Games')),
     h('h1', null, g.icon + ' ' + g.name), badge('Edge ' + g.edge), badge(SKILL[g.skill] || '', g.skill === 'high' ? 'green' : g.skill === 'medium' ? 'gold' : ''), botTable ? badge('🤖 Bot table', 'gold') : null, feeChip,
     h('span', { class: 'grow' }),
-    g.shared && !table ? [h('button', { class: 'btn', onclick: () => quickPlay(id) }, '👥 Public table'), h('button', { class: 'btn', onclick: () => privateTable(id) }, '🔗 Play with friends')] : null,
+    g.shared && !table ? [h('button', { class: 'btn', onclick: () => quickPlay(id) }, '👥 Public table'), h('button', { class: 'btn', title: 'Spectate a public table (works even when every seat is taken)', onclick: async () => { try { const r = await api('/lobby'); const gg = r.games.find(x => x.id === id); const t = gg && gg.tables.slice().sort((a, b) => (b.players + (b.viewers || 0)) - (a.players + (a.viewers || 0)))[0]; if (!t) return toast('No public tables are open yet — click Public table to start one.', 'info'); go('#/t/' + t.code + '/watch'); } catch (e) { toast(e.message, 'bad'); } } }, '👁 Watch'), h('button', { class: 'btn', onclick: () => privateTable(id) }, '🔗 Play with friends')] : null,
     table ? h('button', { class: 'btn red', onclick: leaveTable }, table.role === 'viewer' ? 'Stop watching' : 'Leave table') : null);
 
   const isBankerHost = () => !!(table && table.snap && table.snap.bank && table.snap.hostName === myName());

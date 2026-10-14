@@ -49,6 +49,7 @@ function isHttps(req) { return req.headers['x-forwarded-proto'] === 'https'; }
 // naive in-memory throttle for auth endpoints
 const attempts = new Map();
 function throttle(key, max, windowMs) {
+  if (process.env.CASINO_NO_THROTTLE) return true;   // local test sweeps only
   const now = Date.now();
   const a = (attempts.get(key) || []).filter(t => now - t < windowMs);
   if (a.length >= max) { attempts.set(key, a); return false; }

@@ -129,7 +129,7 @@ export async function lobbyPage() {
               h('span', { class: 'muted small' }, `${t.players}/${t.capacity} seated${t.sitting ? ` · ${t.sitting} sitting out` : ''} · ${t.viewers || 0} watching` + (t.mode === 'simul' ? ` · round ${t.round} · ${t.phase === 'betting' ? 'betting open' : 'dealing'}` : '')),
               h('span', { class: 'grow' }),
               h('a', { class: 'btn sm', href: `#/t/${t.code}/watch` }, '👁 Watch'),
-              h('a', { class: 'btn sm green', href: `#/t/${t.code}` }, t.players >= t.capacity ? 'Try to join' : 'Join')))
+              (t.players >= t.capacity ? h('button', { class: 'btn sm gold', title: 'Table is full — you\'ll be seated at the first free seat on any table', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, '⏳ Queue') : h('a', { class: 'btn sm green', href: `#/t/${t.code}` }, 'Join'))))
               : h('div', { class: 'lobby-row' }, h('span', { class: 'muted small' }, 'No tables open yet.'), h('span', { class: 'grow' }), h('button', { class: 'btn sm green', onclick: () => import('./app.js').then(a => a.quickPlay(g.id)) }, '➕ Open a table & sit down')))));
         }));
     } catch (e) { body.replaceChildren(h('p', { class: 'lose' }, e.message)); }
