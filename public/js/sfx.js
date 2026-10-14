@@ -2,14 +2,18 @@
 let ac = null, master = null, enabled = true, vol = 0.55, quiet = false;
 try { enabled = localStorage.getItem('lc.sound') !== '0'; const v = localStorage.getItem('lc.vol'); if (v !== null) vol = Math.min(1, Math.max(0, Number(v))); } catch {}
 
+let gestured = false;
+for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => { gestured = true; }, { capture: true, once: true, passive: true });
+// browsers refuse to start audio before a user gesture and log a warning each time; stay silent until one happens
 function ctx() {
   if (!ac) {
+    if (!(navigator.userActivation ? navigator.userActivation.hasBeenActive : gestured)) return null;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ac = new AC();
     master = ac.createGain(); master.gain.value = vol; master.connect(ac.destination);
   }
-  if (ac.state === 'suspended') ac.resume();
+  if (ac.state === 'suspended') ac.resume().catch(() => {});
   return ac;
 }
 let noiseBuf = null;

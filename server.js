@@ -438,7 +438,7 @@ function serveStatic(req, res, url) {
     let e;
     try { e = loadStatic(file, st); } catch { res.writeHead(500); return res.end('Error'); }
     const ext = path.extname(file);
-    const headers = { 'Content-Type': e.type, ETag: e.etag, Vary: 'Accept-Encoding', 'Cache-Control': /^\/(icon|apple)/.test(rel) || ext === '.png' ? 'public, max-age=86400' : 'no-cache' };
+    const headers = { 'Content-Type': e.type, ETag: e.etag, Vary: 'Accept-Encoding', 'Cache-Control': /^\/(icon|apple)/.test(rel) || ext === '.png' ? 'public, max-age=86400' : 'private, no-cache' };   // `private` keeps Cloudflare from edge-caching or overriding it with its 4h browser TTL
     if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, headers); return res.end(); }
     const ae = String(req.headers['accept-encoding'] || '');
     let body = e.buf;
