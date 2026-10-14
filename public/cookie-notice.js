@@ -6,6 +6,7 @@
  *  call (adsbygoogle.requestNonPersonalizedAds = 1) when ads === false. Add data-cookie-settings to any link to reopen the notice. */
 (() => {
   const me = document.currentScript || document.querySelector('script[src*="cookie-notice"]');
+  const extra = (me && me.dataset.extra) || '', lead = (me && me.dataset.lead) || 'This site only uses <b>essential</b> cookies and local storage (to keep you signed in and remember your settings). No ads, no analytics, no tracking.';
   const mode = (me && me.dataset.mode) || 'essential', policy = (me && me.dataset.policy) || '/cookies', privacy = (me && me.dataset.privacy) || '/privacy';
   const KEY = 'cookie-consent-v1';
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
@@ -23,7 +24,7 @@
     const done = ads => { write({ ads, ts: Date.now() }); publish(ads && !gpc); box.remove(); css.remove(); };
     box.innerHTML = mode === 'ads'
       ? `We use essential cookies to run this site, and Google AdSense cookies to show ads. You can allow personalised ads or keep only essential cookies (ads then stay non-personalised). ${gpc ? '<br><b>Your browser sends a Global Privacy Control signal, so personalised ads stay off.</b>' : ''} <a href="${policy}">Cookie policy</a> · <a href="${privacy}">Privacy</a><div class="b"><button class="p" data-a="1">Accept all</button><button data-a="0">Essential only</button></div>`
-      : `This site only uses <b>essential</b> cookies and local storage (to keep you signed in and remember your settings). No ads, no analytics, no tracking. <a href="${policy}">Cookie policy</a> · <a href="${privacy}">Privacy</a><div class="b"><button class="p" data-a="0">OK</button></div>`;
+      : `${lead}${extra ? ' ' + extra : ''} <a href="${policy}">Cookie policy</a> · <a href="${privacy}">Privacy</a><div class="b"><button class="p" data-a="0">OK</button></div>`;
     box.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (b) done(b.dataset.a === '1'); });
     document.head.append(css); document.body.append(box);
   };

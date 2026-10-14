@@ -60,6 +60,7 @@ function view(st, { coachOn = true } = {}) {
   if (st.phase === 'done') { v.dealer = C.strs(st.dealer); v.dname = score3(st.dealer).name; v.result = st.res; }
   else v.dealer = [null, null, null].map(() => null);
   if (st.phase === 'decide' && coachOn) v.coach = coach(st);
+  if (st.phase === 'wait') v.waiting = st.play ? 'played' : 'folded';
   return v;
 }
 function coach(st) {
@@ -90,12 +91,12 @@ const actions = {
   fold(ctx) { return resolve(ctx, false); },
 };
 
-function resolve(ctx, play) {
+function resolve(ctx, play, prepaid) {
   const st = ctx.state;
-  if (!st || st.phase !== 'decide') fail('Nothing to decide.');
+  if (!st || (st.phase !== 'decide' && !prepaid)) fail('Nothing to decide.');
   const ps = score3(st.player), ds = score3(st.dealer);
   const strong = ps.v >= Q64;
-  if (play) ctx.debit(st.ante);
+  if (play && !prepaid) ctx.debit(st.ante);
   // grade the decision: obvious calls are easy, hands next to the Q-6-4 line are hard
   const margin = Math.abs(ps.cls === 0 ? (ps.high - 12) + (st.player.map(rk).sort((a, b) => b - a)[1] - 6) / 10 : 3);
   ctx.rate('tcp:q64', margin < 1.2 ? 1500 : margin < 2.2 ? 1150 : 850, play === strong ? 1 : 0.15);
@@ -140,10 +141,49 @@ function resolve(ctx, play) {
 }
 const hs = cards => cards.map(rk).sort((a, b) => b - a).map(rankName).join('-') + (score3(cards).cls ? ' ' + score3(cards).name.toLowerCase() : ' high');
 
+
+// ---------- shared-dealer tables: one dealer hand for everybody, revealed once all seats have decided ----------
+const sharedInit = () => ({ deck: [], dealer: [], shown: false });
+function roundBet(body) {
+  const ante = Number(body && body.ante);
+  if (!Number.isInteger(ante) || ante < 1 || ante > MAX_BET) fail(`Ante must be between 1 and ${MAX_BET}.`);
+  const sides = {}; let total = ante;
+  for (const k of Object.keys(BETS)) { const v = body.sides && body.sides[k]; if (!v) continue; const n = Number(v); if (!Number.isInteger(n) || n < BETS[k].min || n > BETS[k].max) fail(`${BETS[k].name} must be between ${BETS[k].min} and ${BETS[k].max}.`); sides[k] = n; total += n; }
+  return { ante, sides, total };
+}
+function roundStart(mem) { mem.deck = R.shuffle(C.newDeck()); mem.dealer = mem.deck.splice(0, 3); mem.shown = false; }
+function roundDeal(ctx, b, mem) {
+  ctx.debit(b.total);
+  ctx.state = { phase: 'decide', ante: b.ante, sides: b.sides, player: mem.deck.splice(0, 3), dealer: mem.dealer.slice(), shared: true };
+  ctx.out = { stage: 'play' };
+}
+function roundAct(ctx, action, body, mem) {
+  const st = ctx.state; if (!st || st.phase !== 'decide') fail('Nothing to decide.');
+  if (action !== 'play' && action !== 'fold') fail('Unknown action.');
+  st.play = action === 'play'; if (st.play) ctx.debit(st.ante);
+  st.phase = 'wait'; ctx.out = { stage: 'wait', live: st.play };
+}
+function roundFinish(ctx, mem) { const st = ctx.state; ctx.analysis = resolve(ctx, st.play, true); ctx.out = { stage: 'done' }; st.shared = false; }
+function roundTableView(mem, showHole) {
+  const d = mem.dealer || [], ds = d.length && showHole ? score3(d) : null;
+  return { dealer: { cards: d.length ? (showHole ? C.strs(d) : [null, null, null]) : [], name: ds ? ds.name : null, qualifies: ds ? dealerQualifies(ds) : null, total: 0 }, count: null, text: ds ? `Dealer ${ds.name}${dealerQualifies(ds) ? '' : ' (no qualify)'}` : 'Round over' };
+}
+function roundRecover(ctx) {
+  const st = ctx.state; if (!st || !st.shared || !['decide', 'wait'].includes(st.phase)) return false;
+  ctx.refund(st.ante + (st.play ? st.ante : 0) + Object.values(st.sides).reduce((a, b) => a + b, 0), 0); st.phase = 'idle'; st.shared = false; return true;
+}
+// other seats see only face-down cards until the dealer reveals (bot tables are for learning: viewers see everything)
+function publicView(v, bot) {
+  if (bot || v.phase === 'done' || !v.player) return v;
+  const o = { ...v, player: v.player.map(() => null) }; delete o.pname; return o;
+}
+
 module.exports = {
   id: 'threecard', name: 'Three Card Poker', icon: '🂭', category: 'cards', skill: 'medium',
   blurb: 'Ante/Play against the dealer with Pair Plus and the 6-Card Bonus. One decision: play or fold.',
-  edge: '3.37% (Ante/Play)', shared: parallel(6),
+  edge: '3.37% (Ante/Play)',
+  shared: { mode: 'rounds', max: 6, secs: 14, insSecs: 5, actSecs: 20, primary: ['deal'], autoActions: ['fold'], init: sharedInit, bet: roundBet, start: roundStart, deal: roundDeal, act: roundAct, peek: () => false, proceed: () => {}, playDealer: mem => { mem.shown = true; }, finish: roundFinish, tableView: roundTableView, recover: roundRecover, publicView,
+    botBet: () => ({ ante: [10, 20, 50][Math.floor(Math.random() * 3)], sides: {} }), botAction: v => (v.coach && v.coach.best) || 'fold' },
   meta: {
     rules: [
       'Place an Ante (and optional Pair Plus / 6-Card Bonus). You and the dealer each get 3 cards. Look at yours, then PLAY (bet equal to your ante) or FOLD (lose the ante).',
@@ -156,6 +196,6 @@ module.exports = {
     bets: BETS,
   },
   view, actions,
-  inProgress: st => !!st && st.phase === 'decide',
+  inProgress: st => !!st && (st.phase === 'decide' || st.phase === 'wait'),
   _t: { score3, dealerQualifies, Q64, sixCard, PAIRPLUS, ANTEBONUS },
 };

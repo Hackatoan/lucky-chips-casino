@@ -1,8 +1,25 @@
 // Let It Ride client.
 import { h, clear, fmt, cardsRow, card, btn, betPicker } from '../ui.js';
 import { sfx } from '../sfx.js';
+import { roundsHooks } from '../rounds.js';
 
+// shared table layout: the two community cards are one row for everybody; each seat shows its three cards and which bets are still riding
+const TABLE = {
+  hasHand: pv => !!(pv.cards && pv.cards.length),
+  hud: () => null,
+  dealer: rd => { const c = rd.dealer.cards; return c.length ? [h('div', { class: 'zone-title' }, 'Community cards'), h('div', { class: 'cards', style: { minHeight: 0 } }, c.map(x => card(x, {})))] : [h('div', { class: 'zone-title' }, 'Let It Ride'), h('div', { class: 'center muted small' }, 'Three equal bets — everyone is dealt together and shares the two community cards.')]; },
+  seat: pv => { const circ = (label, pulled) => h('span', { class: 'badge ' + (pulled ? 'red' : 'green'), style: { margin: '0 2px' } }, label + (pulled ? ' pulled' : ' on')); return h('div', { class: 'shands' }, h('div', { class: 'shand' }, h('div', { class: 'cards', style: { minHeight: 0 } }, pv.cards.map(c => card(c, {}))),
+    h('div', { class: 'sline' }, circ('1', pv.pulled && pv.pulled[0]), circ('2', pv.pulled && pv.pulled[1]), h('span', { class: 'badge' }, '$ ' + fmt(pv.unit))),
+    pv.result ? h('div', { class: 'result-pill ' + (pv.result.kind ? 'win' : 'lose') }, pv.result.name) : (pv.phase && pv.phase.startsWith('wait') ? h('div', { class: 'muted small' }, 'decided') : null))); },
+  bet: ctx => { const bet = betPicker('letitride', { min: 1, max: 1000, def: 10, label: 'Bet (×3)' }), bonus = betPicker('letitride.bonus', { min: 0, max: 500, def: 0, label: '3-Card Bonus' }); return { node: h('div', null, bet.el, bonus.el), body: () => ({ bet: bet.get(), bonus: bonus.get() || undefined }) }; },
+  myTurn: v => v.phase === 'd1' || v.phase === 'd2',
+  play: (ctx, v) => { const c = ctx.coachOn() ? v.coach : null; return h('div', { class: 'actions' }, btn('Let it ride', 'green big' + (c && c.best === 'ride' ? ' rec' : ''), () => ctx.call('ride', {})), btn('Pull back bet ' + (v.phase === 'd1' ? '1' : '2'), 'red big' + (c && c.best === 'pull' ? ' rec' : ''), () => ctx.call('pull', {}))); },
+  coach: (ctx, v) => { const c = v && v.coach; return c ? h('div', { class: 'coach-content' }, h('div', { class: 'coach-best' }, h('b', null, '★ ' + (c.best === 'ride' ? 'Let it ride' : 'Pull the bet back')), h('p', { class: 'small', style: { margin: '4px 0 0' } }, c.why)), h('div', { class: 'coach-opt' }, h('b', null, 'Exact expected value'), `Let it ride: ${c.evRide.toFixed(2)} bets · Pull back: ${c.evPull.toFixed(2)} bets.`)) : h('div', { class: 'coach-content' }, h('p', null, 'Deal three bets. You\'ll see exact EVs for both decisions.'), h('p', { class: 'muted small' }, 'Everyone at the table decides on bet 1, then the first community card is turned, then bet 2.')); },
+  done: v => (v.result ? h('div', { class: 'banner-result' }, v.result.kind ? v.result.name : 'No paying hand') : null),
+};
+const HOOKS = roundsHooks(TABLE);
 export default {
+  ...HOOKS,
   init(ctx) {
     const s = ctx._lir = { prevH: 0 };
     s.bet = betPicker('letitride', { min: 1, max: 1000, def: 10, label: 'Bet (×3)' });
@@ -11,6 +28,7 @@ export default {
     ctx.stage.replaceChildren(h('div', { class: 'zone-title' }, 'Community cards'), s.comm, s.circles, h('div', { class: 'zone-title' }, 'Your hand'), s.hand, s.msg, s.controls);
   },
   render(v, ctx) {
+    if (HOOKS.tableRender(ctx)) return;
     const s = ctx._lir;
     clear(s.comm); clear(s.hand); clear(s.circles); clear(s.msg); clear(s.controls);
     const cm = v.community || [null, null];

@@ -168,10 +168,62 @@ function settle(ctx, st) {
   return an.review(st.result.name, net, [['Result', lines], ['Your decisions', dec], ['Strategy', tips]]);
 }
 
+
+// ---------- shared tables: everyone gets their own three cards but shares the two community cards ----------
+const sharedInit = () => ({ deck: [], comm: [], shown: 0 });
+function roundBet(body) {
+  const bet = Number(body && body.bet), bonus = Number((body && body.bonus) || 0);
+  if (!Number.isInteger(bet) || bet < 1 || bet > MAX_UNIT) fail(`Bet must be between 1 and ${MAX_UNIT}.`);
+  if (bonus && (!Number.isInteger(bonus) || bonus < 1 || bonus > 500)) fail('3-Card Bonus must be between 1 and 500.');
+  return { bet, bonus, total: bet * 3 + bonus };
+}
+function roundStart(mem) { mem.deck = R.shuffle(C.newDeck()); mem.comm = mem.deck.splice(0, 2); mem.shown = 0; }
+function roundDeal(ctx, b, mem) {
+  ctx.debit(b.total);
+  const st = { phase: 'd1', unit: b.bet, bonusBet: b.bonus, cards: mem.deck.splice(0, 3), comm: mem.comm.slice(), shown: 0, pulled: [false, false], out: [true, true], log: [], shared: true };
+  const e = ev3(st.cards);
+  st.coach = { best: e.ride >= e.pull ? 'ride' : 'pull', evRide: e.ride, evPull: e.pull, why: whyStart(st.cards, e.ride >= e.pull), step: 1 };
+  st.ev1 = e; ctx.state = st; ctx.out = { stage: 'play' };
+}
+function roundAct(ctx, action, body, mem) {
+  const st = ctx.state; if (!st || (st.phase !== 'd1' && st.phase !== 'd2')) fail('No decision to make right now.');
+  if (action !== 'ride' && action !== 'pull') fail('Unknown action.');
+  const ride = action === 'ride', stage = st.phase === 'd1' ? 1 : 2;
+  const evR = stage === 1 ? st.ev1.ride : st.ev2.ride, evP = stage === 1 ? st.ev1.pull : st.ev2.pull;
+  const evBest = Math.max(evR, evP), loss = evBest - (ride ? evR : evP), gap = Math.abs(evR - evP);
+  ctx.rate('lir:d' + stage, 800 + 1100 * Math.max(0, Math.min(1, 1 - gap / 0.6)), Math.max(0, 1 - loss / 0.35));
+  ctx.skill(loss < 0.0005 ? 1 : 0, 1);
+  st.log.push({ stage, ride, best: st.coach.best === 'ride', evRide: evR, evPull: evP, loss });
+  if (!ride) { st.pulled[stage - 1] = true; st.out[stage - 1] = false; ctx.credit(st.unit); }
+  st.phase = stage === 1 ? 'wait1' : 'wait2'; ctx.out = { stage: 'wait' };
+}
+// the table reveals community card 1 once everybody has decided on bet 1, then asks again
+function roundNext(mem) { if (mem.shown === 0) { mem.shown = 1; return true; } return false; }
+function roundProceed(ctx, mem) {
+  const st = ctx.state; if (!st || st.phase !== 'wait1') { ctx.out = { stage: 'wait' }; return; }
+  st.shown = 1; st.phase = 'd2';
+  const h4 = st.cards.concat(st.comm[0]), nb = st.pulled[0] ? 2 : 3, e = rideEV4(h4, nb);
+  st.ev2 = { ride: e.ride, pull: e.pull };
+  st.coach = { best: e.ride >= e.pull ? 'ride' : 'pull', evRide: e.ride, evPull: e.pull, why: why2(h4, e.ride >= e.pull), step: 2 };
+  ctx.out = { stage: 'play' };
+}
+function roundFinish(ctx, mem) { const st = ctx.state; st.shown = 2; ctx.analysis = settle(ctx, st); ctx.out = { stage: 'done' }; st.shared = false; }
+function roundTableView(mem) {
+  const comm = mem.comm || [];
+  return { dealer: { cards: comm.length ? comm.map((c, i) => (i < mem.shown ? C.str(c) : null)) : [], total: 0 }, count: null, text: mem.shown >= 2 ? 'Community ' + C.shorts(comm) : 'Round over' };
+}
+function roundRecover(ctx) {
+  const st = ctx.state; if (!st || !st.shared || !['d1', 'd2', 'wait1', 'wait2'].includes(st.phase)) return false;
+  ctx.refund(st.unit * (1 + st.out.filter(Boolean).length) + st.bonusBet, 0); st.phase = 'idle'; st.shared = false; return true;
+}
+function publicView(v, bot) { if (bot || v.phase === 'done' || !v.cards) return v; return { ...v, cards: v.cards.map(() => null) }; }
+
 module.exports = {
   id: 'letitride', name: 'Let It Ride', icon: '🏇', category: 'cards', skill: 'high',
   blurb: 'Three bets, two chances to pull them back. The coach computes exact EV for every ride-or-pull decision.',
-  edge: '~2.9% of money wagered', shared: parallel(6),
+  edge: '~2.9% of money wagered',
+  shared: { mode: 'rounds', max: 6, secs: 14, insSecs: 5, actSecs: 25, primary: ['deal'], autoActions: ['pull'], init: sharedInit, bet: roundBet, start: roundStart, deal: roundDeal, act: roundAct, peek: () => false, proceed: roundProceed, next: roundNext, playDealer: mem => { mem.shown = 2; }, finish: roundFinish, tableView: roundTableView, recover: roundRecover, publicView,
+    botBet: () => ({ bet: [5, 10, 20][Math.floor(Math.random() * 3)] }), botAction: v => (v.coach && v.coach.best) || 'pull' },
   meta: {
     rules: [
       'Place three equal bets (marked 1, 2 and $). You get three cards; two community cards wait face-down. Look at your cards and decide: take back Bet 1 or let it ride.',
@@ -186,6 +238,6 @@ module.exports = {
     ],
   },
   view, actions,
-  inProgress: st => !!st && (st.phase === 'd1' || st.phase === 'd2'),
+  inProgress: st => !!st && ['d1', 'd2', 'wait1', 'wait2'].includes(st.phase),
   _t: { kind5, ev3, rideEV4, bonus3, PAYS, BONUS },
 };
