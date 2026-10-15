@@ -478,6 +478,28 @@ function loadStatic(file, st) {
   staticCache.set(file, e);
   return e;
 }
+// SEO: server-rendered game/guide pages, sitemap and robots (built once from the game metadata)
+const seo = require('./lib/seo').build(games);
+function sendText(req, res, type, text, cache) {
+  const buf = Buffer.from(text), headers = { 'Content-Type': type, 'Cache-Control': cache || 'public, max-age=3600', Vary: 'Accept-Encoding' };
+  const ae = String(req.headers['accept-encoding'] || '');
+  let body = buf;
+  if (buf.length > 600 && /\bbr\b/.test(ae)) { body = zlib.brotliCompressSync(buf); headers['Content-Encoding'] = 'br'; }
+  else if (buf.length > 600 && /\bgzip\b/.test(ae)) { body = zlib.gzipSync(buf); headers['Content-Encoding'] = 'gzip'; }
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+function serveSeo(req, res, url) {
+  const p = url.pathname;
+  if (p === '/robots.txt') { sendText(req, res, 'text/plain; charset=utf-8', seo.robots); return true; }
+  if (p === '/sitemap.xml') { sendText(req, res, 'application/xml; charset=utf-8', seo.sitemap); return true; }
+  const key = p === '/games' ? '/games/' : p.length > 1 && p.endsWith('/') && p !== '/games/' ? p.slice(0, -1) : p;
+  if (!seo.pages.has(key)) return false;
+  if (key !== p) { res.writeHead(301, { Location: key }); res.end(); return true; }
+  sendText(req, res, 'text/html; charset=utf-8', seo.pages.get(key), 'public, max-age=300');
+  return true;
+}
 function serveStatic(req, res, url) {
   let rel = decodeURIComponent(url.pathname);
   if (rel === '/') rel = '/index.html';
@@ -524,8 +546,11 @@ const handler = async (req, res) => {
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); return res.end(); }
   try {
+    if (url.pathname.startsWith('/api/')) res.setHeader('X-Robots-Tag', 'noindex');
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
+    if (serveSeo(req, res, url)) return;
+    if (/^\/(embed\/|stream)/.test(url.pathname)) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     return serveStatic(req, res, url);
   } catch (e) {
     if (e instanceof engine.GameError) return json(res, e.status || 400, { error: e.message });
