@@ -110,7 +110,7 @@ export function shell(content, active) {
         h('a', { href: '#/house' }, '🏦 The House'),
         h('a', { href: '#/learn' }, '📖 Learn'),
         state.repo ? h('a', { href: 'https://github.com/' + state.repo, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub') : null),
-      h('div', { class: 'foot-links small' }, h('a', { href: '/terms' }, 'Terms'), h('a', { href: '/privacy' }, 'Privacy'), h('a', { href: '/cookies' }, 'Cookies'), h('a', { href: '#', 'data-cookie-settings': '' }, 'Cookie settings'), h('a', { href: '/responsible' }, 'Play-money & responsible play'))));
+      h('div', { class: 'foot-links small' }, h('a', { href: '/terms' }, 'Terms'), h('a', { href: '/privacy' }, 'Privacy'), h('a', { href: '/cookies' }, 'Cookies'), h('a', { href: '#', 'data-cookie-settings': '' }, 'Cookie settings'), h('a', { href: '/responsible' }, 'Play-money & responsible play'), h('a', { href: 'https://discord.gg/FCYAAnCuQH', target: '_blank', rel: 'noopener' }, 'Discord'))));
   root.replaceChildren(top, h('main', { class: 'wrap' }, content), foot);
   if (u.needsVerify) verifyBanner().then(b => { if (b && root.isConnected) root.querySelector('main').prepend(b); }).catch(() => {});
   return root;
