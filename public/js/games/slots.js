@@ -8,6 +8,8 @@ export default {
   init(ctx) {
     const s = ctx._sl = { busy: false, auto: 0, grid: null };
     s.bet = betPicker('slot.' + ctx.id, { min: 1, max: 200, def: 2, label: 'Bet per unit' });
+    // registered once: betPicker keeps listeners in a Set that forEach() also visits while growing, so adding one per render looped forever
+    if (!ctx.readonly) s.bet.onChange(() => { if (s.v) ctx.mod.render(s.v, ctx); });
     s.title = h('div', { class: 'zone-title' });
     s.jp = h('div', { class: 'jackpot', hidden: true });
     s.banner = h('div', { class: 'sl-banner' });
@@ -38,7 +40,6 @@ export default {
         h('span', { class: 'badge gold' }, `🪙 Total bet ${fmt(total)}` + (cfg.units > 1 ? ` (${cfg.units} ${cfg.mode === 'ways' ? 'ways units' : 'lines'} × ${fmt(s.bet.get())})` : '')),
         btn('Paytable', 'ghost', () => paytable(ctx)), btn('Auto ×10', '', () => { s.auto = 10; spin(ctx); }, { disabled: s.busy }),
         btn(s.busy ? 'Spinning…' : 'SPIN', 'gold big', () => { s.auto = 0; spin(ctx); }, { disabled: s.busy || ctx.sitting })));
-      s.bet.onChange(() => ctx.mod.render(s.v, ctx));
     }
     ctx.setCoach(h('div', { class: 'coach-content' }, h('div', { class: 'coach-best' }, h('b', null, `Long-run return ${(v.rtp * 100).toFixed(1)}% — no strategy exists`), h('p', { class: 'small', style: { margin: '4px 0 0' } }, 'The reels are random and independent. "Hot", "cold" and "due" machines are myths; near-misses are just how reels look. Your only control is bet size: smaller bets stretch your bankroll for the same entertainment.')),
       h('div', { class: 'coach-opt' }, h('b', null, 'About the paytable'), cfg.mode === 'cluster' ? 'Matching symbols anywhere on the grid pay when enough connect; winners vanish and new symbols fall in for chain reactions.' : cfg.mode === 'ways' ? 'No paylines: a symbol pays when it appears on adjacent reels from the left. Several copies on one reel multiply the ways.' : 'Wins pay left to right on active paylines; wild symbols substitute for everything except bonus symbols.'),
