@@ -1,0 +1,31 @@
+name: Deploy (Oracle)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy-oracle
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - run: npm test
+      - name: Package
+        run: tar czf /tmp/casino.tgz --exclude=.git --exclude=./test .
+      - name: Ship + restart
+        env:
+          KEY: ${{ secrets.ORACLE_DEPLOY_KEY }}
+          HOST: ${{ secrets.ORACLE_HOST }}
+        run: |
+          install -m 600 /dev/null key && printf '%s\n' "$KEY" > key
+          # The server-side script (root-owned, the only thing `deploy` may sudo) syncs files, keeps data/ + TLS + firebase config, restarts, and fails if the service is not active.
+          ssh -i key -o StrictHostKeyChecking=accept-new deploy@$HOST 'sudo /usr/local/bin/deploy-luckychips' < /tmp/casino.tgz
+      - name: Live check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://casino.hackatoa.com/) && [ "$code" = 200 ] && echo "live: $code" && exit 0
+            sleep 5
+          done
+          echo "::error::casino.hackatoa.com not returning 200 after deploy"; exit 1

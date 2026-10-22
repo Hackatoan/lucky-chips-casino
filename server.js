@@ -529,6 +529,7 @@ function serveStatic(req, res, url) {
 
 const SEC_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
+  'X-Operator': 'SHARD 10 :: 24 44 34 33 31 54',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
