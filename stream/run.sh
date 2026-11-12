@@ -8,11 +8,20 @@ URL=${STREAM_URL:-https://casino.hackatoa.com/stream}
 RESTART_HOURS=${RESTART_HOURS:-12}            # exit (and let docker restart us) now and then so a leaky browser never gets old
 export DISPLAY=:${DISPLAY_NUM:-99}
 
+# `docker restart` keeps the container's filesystem, so the last run's X lock, Chromium profile lock and pulse runtime are still here.
+# Chromium sees its own SingletonLock, decides another instance owns the profile and quits, which turned every restart into a crash loop.
+rm -rf /tmp/.X${DISPLAY_NUM:-99}-lock /tmp/.X11-unix/X${DISPLAY_NUM:-99} /tmp/chrome/Singleton* /tmp/pulse-* /root/.config/pulse/*-runtime
+
 Xvfb :${DISPLAY_NUM:-99} -screen 0 ${W}x${H}x24 -nolisten tcp >/dev/null 2>&1 &
+XVFB=$!
 sleep 1
+PULSE=
 AUDIO_IN=(); AUDIO_OUT=(-an)
 if [ "${AUDIO:-1}" = "1" ]; then
-  pulseaudio --start --exit-idle-time=-1 --daemonize=yes >/dev/null 2>&1
+  # run pulse in the foreground of a background job (not --daemonize) so we hold its pid and its errors land in `docker logs`
+  pulseaudio --exit-idle-time=-1 --daemonize=no --log-target=stderr --log-level=error 2>&1 | sed -u -e '/system bus/d' -e 's/^/[pulse] /' &
+  for _ in $(seq 20); do pactl info >/dev/null 2>&1 && break; sleep 0.5; done
+  PULSE=$(pgrep -x pulseaudio) || { echo "[stream] pulseaudio failed to start, exiting"; exit 1; }
   pactl load-module module-null-sink sink_name=stream sink_properties=device.description=stream >/dev/null 2>&1
   pactl set-default-sink stream >/dev/null 2>&1
   AUDIO_IN=(-f pulse -i stream.monitor)
@@ -50,7 +59,10 @@ OUT="${RTMP_URL%/}/${STREAM_KEY}"
 END=$(( $(date +%s) + RESTART_HOURS * 3600 ))
 BUF=$(( ${VB%k} * 2 ))k
 while [ "$(date +%s)" -lt "$END" ]; do
+  # if anything ffmpeg depends on has gone away, retrying ffmpeg can never succeed: exit and let docker give us a clean start
   kill -0 $CHROME 2>/dev/null || { echo "[stream] browser died, exiting"; exit 1; }
+  kill -0 $XVFB 2>/dev/null || { echo "[stream] Xvfb died, exiting"; exit 1; }
+  [ -z "$PULSE" ] || kill -0 $PULSE 2>/dev/null || { echo "[stream] pulseaudio died, exiting"; exit 1; }
   ffmpeg -hide_banner -loglevel warning -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size ${W}x${H} -i :${DISPLAY_NUM:-99} "${AUDIO_IN[@]}" "${AUDIO_OUT[@]}" \
     -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -b:v "$VB" -maxrate "$VB" -bufsize "$BUF" -g $((FPS * 2)) -keyint_min $((FPS * 2)) \
     -f flv "$OUT"
