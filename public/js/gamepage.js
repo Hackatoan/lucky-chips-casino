@@ -48,8 +48,29 @@ export async function streamPage(shell, onLeave) {
   onLeave(() => document.body.classList.remove('stream'));
   const bar = h('div', { class: 'stream-bar' });
   const left = ms => { const m = Math.max(0, Math.floor(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
-  const draw = () => { const off = now.now - Date.now(); bar.replaceChildren(h('b', null, '🎰 Lucky Chips Casino'), h('span', null, `Now playing: ${now.icon} ${now.name}${now.live ? ' — 🔴 real players at the table' : ''}`), h('span', { class: 'muted' }, now.live ? 'Bots take over when the table empties' : `Next: ${now.next.icon} ${now.next.name} in ${left(now.endsAt - (Date.now() + off))}`), h('span', { class: 'grow' }), h('span', { class: 'url' }, 'casino.hackatoa.com — play money, free to play')); };
-  draw(); const tick = setInterval(draw, 30000); onLeave(() => clearInterval(tick));
+  let flip = 0;
+  const draw = () => {
+    const off = now.now - Date.now(), mins = left(now.endsAt - (Date.now() + off));
+    const sub = flip++ % 2 ? h('span', { class: 'hint' }, '💬 Type !game <name> in chat to switch tables')
+      : h('span', { class: 'muted' }, now.live ? 'Bots take over when the table empties' : now.picked ? `Picked by chat · back to the rotation in ${mins}` : `Next: ${now.next.icon} ${now.next.name} in ${mins}`);
+    bar.replaceChildren(h('b', null, '🎰 Lucky Chips Casino'), h('span', null, `Now playing: ${now.icon} ${now.name}${now.live ? ' — 🔴 real players at the table' : ''}`), sub, h('span', { class: 'grow' }), h('span', { class: 'url' }, 'casino.hackatoa.com — play money, free to play'));
+  };
+  draw(); const tick = setInterval(draw, 15000); onLeave(() => clearInterval(tick));
+  // Kick chat feed: follow/sub/gift alerts pop over the scene; a !game pick reloads straight onto the new table
+  const alerts = []; let showing = false;
+  const ICONS = { follow: '💚', sub: '⭐', gift: '🎁', kicks: '💎', switch: '🎲' };
+  const nextAlert = () => {
+    const a = alerts.shift(); if (!a) { showing = false; return; }
+    showing = true;
+    const el = h('div', { class: 'stream-alert ' + a.kind }, h('div', { class: 'ic' }, ICONS[a.kind] || '🎉'), h('div', null, h('b', null, a.user || 'Someone'), ' ' + a.text, a.message ? h('div', { class: 'msg' }, '“' + a.message + '”') : null));
+    document.body.append(el);
+    sfx.play(a.kind === 'follow' ? 'bell' : a.kind === 'switch' ? 'whoosh' : 'jackpot');
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); nextAlert(); }, 500); }, a.kind === 'switch' ? 3500 : 6000);
+  };
+  const events = new EventSource('/api/stream/events');
+  events.addEventListener('alert', e => { if (alerts.length < 10) alerts.push(JSON.parse(e.data)); if (!showing) nextAlert(); });
+  events.addEventListener('switch', () => setTimeout(() => location.reload(), 4200));
+  onLeave(() => events.close());
   const liveTag = () => (now.live ? ' · 🔴 LIVE players' : '');
   const poll = setInterval(async () => { try { const n = await realApi('/stream/now'); if (n.code !== now.code) location.reload(); now = n; } catch {} }, 20000); onLeave(() => clearInterval(poll));
   const stage = shell;
@@ -107,6 +128,8 @@ async function mountGame(id, shell, onLeave, table) {
   const rulesBox = h('div', { class: 'rules' });
   const tableBox = h('div', { class: 'tblbox' });
   const othersBox = h('div', { class: 'others' });
+  // /stream: shared-outcome tables (roulette, craps, sic bo…) have no seats on the felt, so the broadcast shows the bots betting on a rail under it
+  const streamRail = table && table.embed === 'stream' && table.snap && table.snap.mode === 'simul' ? h('div', { class: 'seat-rail' }) : null;
   const roundBar = h('div', { class: 'round-bar', hidden: true });
   const settings = () => state.user.settings || {};
   const myName = () => state.user.display;
@@ -226,7 +249,7 @@ async function mountGame(id, shell, onLeave, table) {
   ctx.tab = tabset;
   if (streamTips) { ctx.coachNode = tipsNode(g); ctx.keepCoach = true; drawCoach(); }
   if (table && table.embed === 'stream' && tabset.panes.coach) tabset.select('coach');          // broadcast scene: the coach panel is always the one on screen
-  shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, roundBar, stage, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
+  shell(h('div', null, head, h('div', { class: 'game' }, h('div', { class: 'stagecol' }, roundBar, stage, streamRail, othersBox), h('div', { class: 'side' }, tabset.el))), table ? 'lobby' : '');
   if (first.last) ctx.showReview(first.last, true);
 
   // ===================== shared table =====================
@@ -311,6 +334,7 @@ async function mountGame(id, shell, onLeave, table) {
 
   function onState(s) {
     prevSnap = snap; snap = s; table.snap = s; table.role = s.role;
+    drawRail(s);
     if (!tp.players) return;
     const host = s.hostName === myName();
     tp.viewersBadge.textContent = '👁 ' + s.viewers + (s.queue ? ` · ⏳ ${s.queue} waiting` : '');
@@ -524,6 +548,18 @@ async function mountGame(id, shell, onLeave, table) {
       h('div', { class: 'rl-hist' }, (s.history || []).map(histChip)));
   }
 
+  function drawRail(s) {
+    if (!streamRail) return;
+    const settled = s.phase === 'results';
+    streamRail.replaceChildren(...s.players.filter(p => !p.banker).map(p => {
+      const net = p.last ? p.last.net : null;
+      return h('div', { class: 'seat-card' + (settled && p.last ? (net > 0 ? ' won' : net < 0 ? ' lost' : ' push') : p.staked ? ' bet' : '') },
+        h('div', { class: 'nm' }, p.name),
+        h('div', { class: 'note' }, p.note || (p.staked ? 'bet placed' : 'choosing a bet…')),
+        h('div', { class: 'amt' }, p.staked ? h('span', null, '🪙 ' + fmt(p.staked)) : null, settled && p.last ? h('b', { class: net > 0 ? 'win' : net < 0 ? 'lose' : '' }, sgn(net)) : null));
+    }));
+  }
+
   async function onResult(d) {
     const iPlayed = d.results.some(r => r.name === myName());
     if (animOn() && mod.onResult) { try { await mod.onResult(spec && spec.sctx ? spec.sctx : ctx, d); } catch (e) { console.error(e); } }
@@ -534,6 +570,7 @@ async function mountGame(id, shell, onLeave, table) {
         if (iPlayed && r.last && JSON.stringify(r.last) !== ctx.lastReviewJson) { ctx.showReview(r.last); sfx.outcome(r.last); roundFx(stage, r.last, stage); }
       } catch (e) { console.error(e); }
     } else if (!mod.onResult) sfx.play('chip');
+    if (streamRail && d.results.some(r => r.net > 0)) sfx.play('win', d.results.some(r => r.net >= r.staked * 5) ? 2 : 1);     // the broadcast cheers when a bot wins
   }
 
   function addChat(m, silent) {

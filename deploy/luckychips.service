@@ -7,6 +7,8 @@ User=ubuntu
 WorkingDirectory=/opt/luckychips
 ExecStart=/opt/node/bin/node server.js
 Environment=PORT=8445 HOST=0.0.0.0 TLS_CERT=/opt/luckychips/tls.crt TLS_KEY=/opt/luckychips/tls.key
+# Kick chat bot (optional): KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_CHANNEL — lives in data/ so deploys never overwrite it
+EnvironmentFile=-/opt/luckychips/data/kick.env
 Restart=always
 MemoryMax=300M
 

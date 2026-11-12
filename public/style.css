@@ -647,3 +647,21 @@ body.stream .game-head { display: none !important; }
 body.stream .felt .spectator-banner { display: none; }
 body.stream:not([data-game="holdem"]) .felt { zoom: 1.3; }
 body.stream .stagecol .round-bar { font-size: 1rem; }
+body.stream .stream-bar .hint { color: #9fe3b8; }
+body.stream .seat-rail { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+body.stream .seat-card { flex: 0 1 175px; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.1); text-align: center; transition: border-color .25s, background .25s, transform .25s; }
+body.stream .seat-card .nm { font-weight: 700; }
+body.stream .seat-card .note { font-size: .85rem; opacity: .85; min-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.stream .seat-card .amt { display: flex; gap: 8px; justify-content: center; font-size: .95rem; min-height: 1.3em; }
+body.stream .seat-card.bet { border-color: rgba(243,214,138,.55); }
+body.stream .seat-card.won { border-color: #3ddc84; background: rgba(61,220,132,.16); transform: translateY(-4px); }
+body.stream .seat-card.lost { opacity: .7; }
+.stream-alert { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; gap: 14px; align-items: center; padding: 14px 26px; border-radius: 16px;
+  font-size: 1.5rem; background: rgba(8,30,20,.95); border: 3px solid #f3d68a; box-shadow: 0 10px 40px rgba(0,0,0,.6), 0 0 30px rgba(243,214,138,.35); animation: alert-in .45s cubic-bezier(.2,1.4,.4,1); max-width: 70vw; }
+.stream-alert .ic { font-size: 2.4rem; animation: alert-bounce 1s ease-in-out infinite alternate; }
+.stream-alert .msg { font-size: 1.05rem; opacity: .85; margin-top: 2px; }
+.stream-alert.follow { border-color: #3ddc84; } .stream-alert.switch { border-color: #7fb4ff; font-size: 1.25rem; }
+.stream-alert.out { animation: alert-out .5s ease-in forwards; }
+@keyframes alert-in { from { transform: translate(-50%, -40px) scale(.6); opacity: 0; } }
+@keyframes alert-out { to { transform: translate(-50%, -30px); opacity: 0; } }
+@keyframes alert-bounce { to { transform: translateY(-5px) rotate(-6deg); } }
