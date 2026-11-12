@@ -2,8 +2,8 @@
 # 24/7 broadcast of the casino's bot tables: headless Chromium on a virtual screen -> ffmpeg -> RTMP (Kick, Twitch, YouTube…).
 # The page itself (/stream) rotates through the games, so nothing here needs to know the schedule.
 set -u
-W=${WIDTH:-1280}; H=${HEIGHT:-720}; FPS=${FPS:-30}
-VB=${VIDEO_BITRATE:-3000k}; AB=${AUDIO_BITRATE:-96k}
+W=${WIDTH:-1280}; H=${HEIGHT:-720}; FPS=${FPS:-60}
+VB=${VIDEO_BITRATE:-4500k}; AB=${AUDIO_BITRATE:-128k}
 URL=${STREAM_URL:-https://casino.hackatoa.com/stream}
 RESTART_HOURS=${RESTART_HOURS:-12}            # exit (and let docker restart us) now and then so a leaky browser never gets old
 export DISPLAY=:${DISPLAY_NUM:-99}
@@ -24,15 +24,16 @@ if [ "${AUDIO:-1}" = "1" ]; then
   PULSE=$(pgrep -x pulseaudio) || { echo "[stream] pulseaudio failed to start, exiting"; exit 1; }
   pactl load-module module-null-sink sink_name=stream sink_properties=device.description=stream >/dev/null 2>&1
   pactl set-default-sink stream >/dev/null 2>&1
-  AUDIO_IN=(-f pulse -i stream.monitor)
+  AUDIO_IN=(-thread_queue_size 512 -f pulse -i stream.monitor)
   # mix: game sounds (input 1) + original lounge music loop (input 2). The music sits ~12 dB under, ducks a little while a sound plays, and a
-  # shared compressor + limiter + loudness normaliser keeps the whole thing at an even level (about -16 LUFS, what Kick/Twitch expect).
+  # shared compressor + limiter keeps the whole thing at an even level. NOT loudnorm: it buffers ~3 s and resamples to 192 kHz, which starved
+  # the live x11grab input down to ~3 fps (the stream looked frozen and Kick flagged the keyframe interval).
   if [ "${MUSIC:-1}" = "1" ] && [ -f /lounge.mp3 ]; then
-    AUDIO_IN+=(-stream_loop -1 -i /lounge.mp3)
-    FILTER="[1:a]aresample=44100,volume=${SFX_VOLUME:-1.0},asplit=2[sfx][sfxkey];[2:a]aresample=44100,volume=${MUSIC_VOLUME:-0.55}[mus];[mus][sfxkey]sidechaincompress=threshold=0.04:ratio=3:attack=30:release=600[musd];[sfx][musd]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,acompressor=threshold=-20dB:ratio=3:attack=15:release=250,loudnorm=I=-16:TP=-1.5:LRA=7,aresample=44100[aout]"
+    AUDIO_IN+=(-re -stream_loop -1 -i /lounge.mp3)
+    FILTER="[1:a]aresample=48000,volume=${SFX_VOLUME:-1.0},asplit=2[sfx][sfxkey];[2:a]aresample=48000,volume=${MUSIC_VOLUME:-0.55}[mus];[mus][sfxkey]sidechaincompress=threshold=0.04:ratio=3:attack=30:release=600[musd];[sfx][musd]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,acompressor=threshold=-20dB:ratio=3:attack=15:release=250:makeup=2,alimiter=limit=0.85[aout]"
     AUDIO_OUT=(-filter_complex "$FILTER" -map 0:v -map "[aout]" -c:a aac -b:a "$AB" -ac 2)
   else
-    AUDIO_OUT=(-map 0:v -map 1:a -af "acompressor=threshold=-20dB:ratio=3,loudnorm=I=-16:TP=-1.5:LRA=7" -c:a aac -b:a "$AB" -ar 44100 -ac 2)
+    AUDIO_OUT=(-map 0:v -map 1:a -af "acompressor=threshold=-20dB:ratio=3:makeup=2,alimiter=limit=0.85" -c:a aac -b:a "$AB" -ar 48000 -ac 2)
   fi
 fi
 
@@ -63,8 +64,8 @@ while [ "$(date +%s)" -lt "$END" ]; do
   kill -0 $CHROME 2>/dev/null || { echo "[stream] browser died, exiting"; exit 1; }
   kill -0 $XVFB 2>/dev/null || { echo "[stream] Xvfb died, exiting"; exit 1; }
   [ -z "$PULSE" ] || kill -0 $PULSE 2>/dev/null || { echo "[stream] pulseaudio died, exiting"; exit 1; }
-  ffmpeg -hide_banner -loglevel warning -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size ${W}x${H} -i :${DISPLAY_NUM:-99} "${AUDIO_IN[@]}" "${AUDIO_OUT[@]}" \
-    -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -b:v "$VB" -maxrate "$VB" -bufsize "$BUF" -g $((FPS * 2)) -keyint_min $((FPS * 2)) \
+  ffmpeg -hide_banner -loglevel warning -thread_queue_size 512 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size ${W}x${H} -i :${DISPLAY_NUM:-99} "${AUDIO_IN[@]}" "${AUDIO_OUT[@]}" \
+    -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -b:v "$VB" -maxrate "$VB" -bufsize "$BUF" -g $((FPS * 2)) -keyint_min $((FPS * 2)) -sc_threshold 0 -force_key_frames "expr:gte(t,n_forced*2)" \
     -f flv "$OUT"
   echo "[stream] ffmpeg stopped ($?), retrying in 5s"; sleep 5
 done

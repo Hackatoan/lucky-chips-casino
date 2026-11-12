@@ -10,4 +10,4 @@ docker logs -f kick-stream
 ```
 
 Server settings (casino): `STREAM_GAMES=blackjack,roulette,baccarat,holdem,craps,threecard,letitride,war,sicbo,wheel` and `STREAM_HOURS=3`.
-Resources: ~2 CPU cores for 720p30 at 3 Mbps, ~1.2 GB RAM. For 1080p set `WIDTH=1920 HEIGHT=1080 VIDEO_BITRATE=6000k` (needs ~3 cores).
+Resources: ~1.5 CPU cores for 720p60 at 4.5 Mbps, ~1.2 GB RAM. For 1080p set `WIDTH=1920 HEIGHT=1080 VIDEO_BITRATE=6000k` (needs ~3 cores).
