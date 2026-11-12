@@ -30,7 +30,7 @@ if [ "${AUDIO:-1}" = "1" ]; then
   # the live x11grab input down to ~3 fps (the stream looked frozen and Kick flagged the keyframe interval).
   if [ "${MUSIC:-1}" = "1" ] && [ -f /lounge.mp3 ]; then
     AUDIO_IN+=(-re -stream_loop -1 -i /lounge.mp3)
-    FILTER="[1:a]aresample=48000,volume=${SFX_VOLUME:-1.0},asplit=2[sfx][sfxkey];[2:a]aresample=48000,volume=${MUSIC_VOLUME:-0.55}[mus];[mus][sfxkey]sidechaincompress=threshold=0.04:ratio=3:attack=30:release=600[musd];[sfx][musd]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,acompressor=threshold=-20dB:ratio=3:attack=15:release=250:makeup=2,alimiter=limit=0.85[aout]"
+    FILTER="[1:a]aresample=48000,volume=${SFX_VOLUME:-4.0},asplit=2[sfx][sfxkey];[2:a]aresample=48000,volume=${MUSIC_VOLUME:-0.55}[mus];[mus][sfxkey]sidechaincompress=threshold=0.02:ratio=3:attack=30:release=600[musd];[sfx][musd]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,acompressor=threshold=-20dB:ratio=3:attack=15:release=250:makeup=2,alimiter=limit=0.85[aout]"
     AUDIO_OUT=(-filter_complex "$FILTER" -map 0:v -map "[aout]" -c:a aac -b:a "$AB" -ac 2)
   else
     AUDIO_OUT=(-map 0:v -map 1:a -af "acompressor=threshold=-20dB:ratio=3:makeup=2,alimiter=limit=0.85" -c:a aac -b:a "$AB" -ar 48000 -ac 2)
@@ -56,7 +56,30 @@ if [ -z "${RTMP_URL:-}" ] || [ -z "${STREAM_KEY:-}" ]; then
   exec sleep infinity
 fi
 
-OUT="${RTMP_URL%/}/${STREAM_KEY}"
+# one line a minute in `docker logs` from ffmpeg's -progress blocks, so a stalled/low-fps encode is visible without guessing
+encstats() { local k v f b d u sp; while IFS== read -r k v; do case $k in fps) f=$v;; bitrate) b=$v;; drop_frames) d=$v;; dup_frames) u=$v;; speed) sp=$v;;
+  progress) echo "[enc] fps=$f bitrate=$b dropped=$d dup=$u speed=$sp";; esac; done; }
+OUT="${RTMP_URL%/}/${STREAM_KEY}"; TCURL=()
+# rtmps: let stunnel do the TLS and have ffmpeg speak plain RTMP to it on localhost. ffmpeg's own rtmps (GnuTLS) polls the socket after every
+# packet and stalls, which capped the live encode at ~9 fps with thousands of dropped frames a minute (the same encode to a file holds 60).
+if [ "${RTMPS_RELAY:-1}" = "1" ] && [[ "$RTMP_URL" =~ ^rtmps://([^/:]+)(:([0-9]+))?(/.*)?$ ]]; then
+  RHOST=${BASH_REMATCH[1]}; RPORT=${BASH_REMATCH[3]:-443}; RPATH=${BASH_REMATCH[4]%/}
+  cat > /tmp/stunnel.conf <<CONF
+foreground = no
+pid = /tmp/stunnel.pid
+output = /dev/stderr
+[rtmps]
+client = yes
+accept = 127.0.0.1:1935
+connect = $RHOST:$RPORT
+sni = $RHOST
+verifyChain = yes
+checkHost = $RHOST
+CAfile = /etc/ssl/certs/ca-certificates.crt
+CONF
+  stunnel /tmp/stunnel.conf || { echo "[stream] stunnel failed to start, exiting"; exit 1; }
+  OUT="rtmp://127.0.0.1:1935${RPATH}/${STREAM_KEY}"; TCURL=(-rtmp_tcurl "${RTMP_URL%/}")
+fi
 END=$(( $(date +%s) + RESTART_HOURS * 3600 ))
 BUF=$(( ${VB%k} * 2 ))k
 while [ "$(date +%s)" -lt "$END" ]; do
@@ -65,8 +88,8 @@ while [ "$(date +%s)" -lt "$END" ]; do
   kill -0 $XVFB 2>/dev/null || { echo "[stream] Xvfb died, exiting"; exit 1; }
   [ -z "$PULSE" ] || kill -0 $PULSE 2>/dev/null || { echo "[stream] pulseaudio died, exiting"; exit 1; }
   ffmpeg -hide_banner -loglevel warning -thread_queue_size 512 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size ${W}x${H} -i :${DISPLAY_NUM:-99} "${AUDIO_IN[@]}" "${AUDIO_OUT[@]}" \
-    -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -b:v "$VB" -maxrate "$VB" -bufsize "$BUF" -g $((FPS * 2)) -keyint_min $((FPS * 2)) -sc_threshold 0 -force_key_frames "expr:gte(t,n_forced*2)" \
-    -f flv "$OUT"
-  echo "[stream] ffmpeg stopped ($?), retrying in 5s"; sleep 5
+    -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -b:v "$VB" -maxrate "$VB" -bufsize "$BUF" -g $((FPS * 2)) -keyint_min $((FPS * 2)) -sc_threshold 0 -force_key_frames "expr:gte(t,n_forced*2)" -vf "setpts=N/(${FPS}*TB)" -fps_mode cfr -r "$FPS" \
+    -progress pipe:1 -stats_period 60 -f flv "${TCURL[@]}" "$OUT" | encstats
+  echo "[stream] ffmpeg stopped (${PIPESTATUS[0]}), retrying in 5s"; sleep 5
 done
 kill $CHROME 2>/dev/null; exit 0
