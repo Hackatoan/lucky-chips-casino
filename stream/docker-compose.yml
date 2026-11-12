@@ -9,3 +9,14 @@ services:
     cpus: 3
     volumes:
       - ./out:/out
+
+  # forwards Kick chat !commands to the casino (Kick's chat webhook is unreliable); needs KICK_CHANNEL_ID + KICK_RELAY_KEY in .env
+  kick-relay:
+    image: node:24-alpine
+    container_name: kick-relay
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./relay.js:/relay.js:ro
+    command: ["node", "/relay.js"]
+    mem_limit: 128m
