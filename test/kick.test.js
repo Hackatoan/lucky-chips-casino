@@ -12,7 +12,7 @@ const realFetch = global.fetch;
 global.fetch = async (url, o = {}) => {
   url = String(url);
   if (url.endsWith('/public/v1/public-key')) return new Response(JSON.stringify({ data: { public_key: publicKey.export({ type: 'spki', format: 'pem' }) } }));
-  if (url.endsWith('/public/v1/chat')) { sent.push(JSON.parse(o.body).content); return new Response(JSON.stringify({ data: { is_sent: true } })); }
+  if (url.endsWith('/public/v1/chat')) { const b = JSON.parse(o.body); if (b.type === 'bot') return new Response('{"message":"Not found"}', { status: 404 }); sent.push(b); return new Response(JSON.stringify({ data: { is_sent: true } })); }     // like Kick for an app with no bot identity
   if (url.endsWith('/public/v1/events/subscriptions')) return new Response(JSON.stringify({ data: [] }));
   return realFetch(url, o);
 };
@@ -57,9 +57,10 @@ server.listen(0, async () => {
   await hook(port, 'channel.followed', { broadcaster: { user_id: 12345 }, follower: { username: 'elsewhere' } }); await wait(50);
   ok(!alerts.some(([, d]) => d.user === 'elsewhere'), 'events for other channels are ignored');
   await hook(port, 'chat.message.sent', chat('x', '!play'));
-  for (let i = 0; i < 80 && !sent.some(m => /casino\.hackatoa\.com/.test(m)); i++) await wait(250);     // chat goes out 1.5 s apart
-  ok(sent.some(m => /casino\.hackatoa\.com/.test(m)), '!play posts the link');
-  ok(sent.some(m => new RegExp('switched the table to .*' + tname).test(m)), 'switch announced in chat');
-  ok(sent.some(m => /try again in \d+ min/.test(m)), 'cooldown explained in chat');
+  for (let i = 0; i < 80 && !sent.some(({ content: m }) => /casino\.hackatoa\.com/.test(m)); i++) await wait(250);     // chat goes out 1.5 s apart
+  ok(sent.some(({ content: m }) => /casino\.hackatoa\.com/.test(m)), '!play posts the link');
+  ok(sent.some(({ content: m }) => new RegExp('switched the table to .*' + tname).test(m)), 'switch announced in chat');
+  ok(sent.some(({ content: m }) => /try again in \d+ min/.test(m)), 'cooldown explained in chat');
+  ok(sent.every(b => b.type === 'user' && b.broadcaster_user_id === 7), 'falls back to posting as the channel when bot messages 404');
   server.close(); process.exit(0);
 });
